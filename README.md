@@ -1,42 +1,61 @@
-## <Project Name>
+# GEMA
 
-<Project fast description>
-  
+QrCode website that will allow personalized qr codes for autistics or others syndromes in case they get lost or enter in a crisis.
+The QR will contain necessary information/guideline that will help others to support the person in case of emergency
+
 ## How It Works
 
-<Specified project description>
+<Describe the main flow of the system in simple steps>
 
+Example:
+- User creates a profile with emergency information  
+- System generates a QR code linked to the profile  
+- QR code is scanned in an emergency  
+- Relevant information is displayed instantly  
 
 ## Diagram
 
-<Project C4 or sequencial diagram>
-  
+<C4 model or sequence diagram showing system flow and components>
+
 ## Tech Stack
 
-<Stack of the project>
+- Java 21 + Spring Boot (backend)
+- PostgreSQL
+- React + TypeScript (frontend)
 
+## Architecture
 
+The project follows a Hexagonal Architecture (Ports and Adapters) approach. The goal is to isolate business logic from frameworks and external systems.
+
+Core contains domain models, use cases, and ports (interfaces). It represents the business rules and has no dependency on frameworks or infrastructure. Adapters implement external concerns such as database access and external APIs. The web layer exposes the system through REST controllers.
+
+The dependency rule is strict: the core must not depend on adapters, frameworks, or infrastructure. All dependencies point inward toward the core.
 
 ## Use Cases
 
-<Why the project is useful>
+- Creation of emergency QR profiles  
+- Quick access to critical personal/medical information  
+- Support for individuals with specific conditions or in emergency situations  
+- Reliable information sharing with first responders
 
 ## Set-up
 
-```bash
 git clone <Link>
 cd <Project name>
-<other comands>
-```
+cd backend
+./mvnw spring-boot:run
 
-Access:
+cd frontend
+npm install
+npm run dev
 
-    <Api routes or swagger>
+## Access
+
+API: <Swagger or backend URL>  
+Frontend: http://localhost:3000  
 
 ## Contact
-[LinkedIn](https://www.linkedin.com/in/gabriel-gerhardt-0a8b852b9/)
 
-[Gmail](mailto:gabrielgerhardt27@gmail.com)
-
-[GitHub](https://github.com/Gabriel-Gerhardt)
-
+LinkedIn: https://www.linkedin.com/in/gabriel-gerhardt-0a8b852b9/  
+Email: mailto:gabrielgerhardt27@gmail.com  
+GitHub: https://github.com/Gabriel-Gerhardt
