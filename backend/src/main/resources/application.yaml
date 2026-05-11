@@ -1,3 +1,15 @@
 spring:
   application:
     name: gema
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/gema
+    username: postgres
+    password: postgres
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog.yml
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
