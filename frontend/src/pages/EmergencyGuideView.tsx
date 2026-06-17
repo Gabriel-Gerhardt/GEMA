@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Card from '../components/Card'
+import ErrorState from '../components/ErrorState'
+import LoadingState from '../components/LoadingState'
+import { ApiError, apiClient } from '../lib/apiClient'
 
 interface EmergencyGuide {
   publicId: string
@@ -10,58 +13,75 @@ interface EmergencyGuide {
   createdAt: string
 }
 
-// Mock "backend" lookup — no API client exists in this frontend yet, so we
-// simulate a network round trip with a timeout, exactly like the other
-// wireframe pages use static mock data. Replace with a real fetch once the
-// public guide endpoint exists.
-const MOCK_GUIDES: Record<string, EmergencyGuide> = {
-  abc123: {
-    publicId: 'abc123',
-    title: 'Jordan needs a little extra time and patience',
-    description:
-      'I have a hidden disability that can make busy or loud places overwhelming. ' +
-      "I'm not in danger, but I may need a moment, a quiet space, or simple, " +
-      "clear instructions. Thank you for your patience — there's no need to call " +
-      'anyone unless I ask.',
-    isActive: true,
-    createdAt: '2026-06-01',
-  },
-  inactive1: {
-    publicId: 'inactive1',
-    title: 'Retired guide',
-    description: 'This guide has been turned off by its owner.',
-    isActive: false,
-    createdAt: '2026-01-10',
-  },
-}
-
-type ViewState =
-  | { status: 'loading' }
+type Result =
   | { status: 'ready'; guide: EmergencyGuide }
   | { status: 'unavailable' }
+  | { status: 'error' }
+
+// Each result is tagged with the request it answers. Rendering compares
+// requestKey against the current (publicId, retryCount) pair, so a stale
+// in-flight request can never clobber a newer one's state, and "loading"
+// falls out of that comparison instead of a setState call inside the effect.
+interface TaggedResult {
+  requestKey: string
+  result: Result
+}
 
 export default function EmergencyGuideView() {
   const { publicId } = useParams<{ publicId: string }>()
-  const [state, setState] = useState<ViewState>({ status: 'loading' })
+  const [retryCount, setRetryCount] = useState(0)
+  const [tagged, setTagged] = useState<TaggedResult | null>(null)
+  const requestKey = `${publicId ?? ''}:${retryCount}`
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const guide = publicId ? MOCK_GUIDES[publicId] : undefined
-      if (guide && guide.isActive) {
-        setState({ status: 'ready', guide })
-      } else {
-        setState({ status: 'unavailable' })
+    let cancelled = false
+    async function load() {
+      if (!publicId) {
+        if (!cancelled) setTagged({ requestKey, result: { status: 'unavailable' } })
+        return
       }
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [publicId])
+      try {
+        const guide = await apiClient.get<EmergencyGuide>(`/api/q/${publicId}`)
+        if (cancelled) return
+        setTagged({
+          requestKey,
+          result: guide.isActive ? { status: 'ready', guide } : { status: 'unavailable' },
+        })
+      } catch (err) {
+        if (cancelled) return
+        if (err instanceof ApiError && err.status === 404) {
+          setTagged({ requestKey, result: { status: 'unavailable' } })
+          return
+        }
+        setTagged({ requestKey, result: { status: 'error' } })
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [publicId, requestKey])
+
+  const retry = () => setRetryCount((n) => n + 1)
+
+  const state: Result | { status: 'loading' } =
+    tagged && tagged.requestKey === requestKey ? tagged.result : { status: 'loading' }
 
   if (state.status === 'loading') {
     return (
       <main className="mx-auto max-w-md px-4 py-12 text-center">
-        <p className="text-base text-text-warm-600" role="status">
-          Loading guide…
-        </p>
+        <LoadingState label="Loading guide…" />
+      </main>
+    )
+  }
+
+  if (state.status === 'error') {
+    return (
+      <main className="mx-auto max-w-md px-4 py-12 text-center">
+        <ErrorState
+          message="We couldn't load this guide. Please check your connection and try again."
+          onRetry={retry}
+        />
       </main>
     )
   }

@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 afterEach(cleanup)
@@ -46,6 +46,22 @@ describe('App routing', () => {
   })
 
   it('mounts EmergencyGuideView at "/q/:publicId" via PublicLayout, with no Header/nav, and resolves the guide for the param', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    vi.mocked(fetch).mockReturnValue(
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            publicId: 'abc123',
+            title: 'Jordan needs a little extra time and patience',
+            description: 'I have a hidden disability.',
+            isActive: true,
+            createdAt: '2026-06-01',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+
     renderAppAt('/q/abc123')
     // Loading state first.
     expect(screen.getByRole('status').textContent).toMatch(/loading/i)
@@ -55,6 +71,8 @@ describe('App routing', () => {
       screen.getByText(/Jordan needs a little extra time and patience/i),
     )
     expect(screen.queryByRole('navigation')).toBeNull()
+
+    vi.unstubAllGlobals()
   })
 
   it('falls back to NotFound via PublicLayout for an unmatched path, with no Header/nav', () => {
