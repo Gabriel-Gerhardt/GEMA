@@ -1,22 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-yellow: #ffc81c;
-  --color-primary-yellow-dark: #e0a800;
+  /* Primary: petal green. -dark is the button-fill shade (passes AA with
+     white text at 5.2:1); the lighter base tone is for swatches/icons/large
+     accents where a 3:1 (large-text/non-text) bar is enough. */
+  --color-primary-green: #4f8f3d;
+  --color-primary-green-dark: #3e7a2f;
+  --color-leaf-green: #2f5233;
+  --color-mint-50: #e9f3e3;
+
+  /* Secondary/accent: sunflower brown-gold. Use sparingly (badges, focus
+     rings, the flower center) — never as standalone body text on cream. */
+  --color-accent-gold: #c97b2e;
+  --color-accent-gold-dark: #8f5219;
+
   --color-base-white: #ffffff;
-  --color-surface-gray-50: #fafaf9;
-  --color-border-gray-200: #e5e5e2;
-  --color-text-gray-900: #262624;
-  --color-text-gray-600: #5c5c58;
-  --color-semantic-success: #2f9e4f;
-  --color-semantic-danger: #d14040;
+  --color-surface-cream: #fbf8f0;
+  --color-border-warm-200: #e8e1d3;
+  --color-text-warm-900: #332e22;
+  --color-text-warm-600: #6b6354;
+
+  /* Re-tuned so both still pass AA (4.5:1) as text on the cream background,
+     not just as fills. */
+  --color-semantic-success: #27803f;
+  --color-semantic-danger: #c23030;
 
   --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Organic accent radius for the occasional asymmetric flourish (e.g. a
+     card corner). Most components keep ordinary rounded-md/lg. */
+  --radius-organic: 1.5rem 0.5rem 1.5rem 0.5rem;
 }
 
 body {
   margin: 0;
-  background: var(--color-surface-gray-50);
-  color: var(--color-text-gray-900);
+  background: var(--color-surface-cream);
+  color: var(--color-text-warm-900);
   font-family: var(--font-sans);
 }
