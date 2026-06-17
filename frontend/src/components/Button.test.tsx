@@ -15,7 +15,7 @@ describe('Button', () => {
 
   it('applies the primary variant class by default', () => {
     render(<Button>Primary</Button>)
-    expect(screen.getByRole('button').className).toContain('bg-primary-yellow')
+    expect(screen.getByRole('button').className).toContain('bg-primary-green-dark')
   })
 
   it('applies the danger variant class when requested', () => {
