@@ -14,13 +14,28 @@ function renderAppAt(initialPath: string) {
 }
 
 describe('App routing', () => {
-  it('mounts Home with the authenticated Header/nav at "/"', () => {
-    renderAppAt('/')
+  it('mounts Home with the authenticated Header/nav at "/home"', () => {
+    renderAppAt('/home')
     // Header brand wordmark + nav links should be present.
     const nav = screen.getByRole('navigation')
     expect(nav).toBeTruthy()
     expect(within(nav).getByRole('link', { name: /gallery/i })).toBeTruthy()
     expect(within(nav).getByRole('link', { name: /profile/i })).toBeTruthy()
+    // Regression check: the Header's "Home" nav link and brand wordmark must
+    // point to "/home", not "/" (which is now the public LandingPage). A link
+    // to "/" here would kick a logged-in user out to the marketing page.
+    expect(
+      within(nav).getByRole('link', { name: /home/i }).getAttribute('href'),
+    ).toBe('/home')
+    const wordmarkLink = screen.getByRole('link', { name: /gema/i })
+    expect(wordmarkLink.getAttribute('href')).toBe('/home')
+  })
+
+  it('mounts the new LandingPage via PublicLayout at "/", with no Header/nav', () => {
+    renderAppAt('/')
+    expect(screen.getByRole('heading', { level: 1 })).toBeTruthy()
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('link', { name: /gallery/i })).toBeNull()
   })
 
   it('mounts QrCodeGallery at "/qr/gallery" with the Header present', () => {

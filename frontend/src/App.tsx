@@ -5,6 +5,7 @@ import { SunflowerMark } from './components/Logo'
 import CreateAccount from './pages/CreateAccount'
 import EmergencyGuideView from './pages/EmergencyGuideView'
 import Home from './pages/Home'
+import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Onboarding, { ONBOARDING_TOTAL_STEPS } from './pages/Onboarding'
@@ -69,7 +70,8 @@ function App() {
     <Routes>
       <Route path="/q/:publicId" element={<PublicLayout><EmergencyGuideView /></PublicLayout>} />
       <Route path="/welcome" element={<OnboardingRoute />} />
-      <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+      <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
+      <Route path="/home" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
       <Route path="/create-account" element={<AppLayout><CreateAccount /></AppLayout>} />
       <Route path="/profile" element={<AppLayout><UserProfile /></AppLayout>} />
