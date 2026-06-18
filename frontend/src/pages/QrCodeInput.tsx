@@ -75,7 +75,7 @@ export default function QrCodeInput() {
   if (form.status === 'success') {
     const shareUrl = `${window.location.origin}/q/${form.publicId}`
     return (
-      <main className="mx-auto max-w-md px-4 py-8">
+      <main className="mx-auto flex min-h-[calc(100vh-57px)] max-w-sm flex-col justify-center px-4 py-8">
         <Card className="text-center">
           <h1 className="text-2xl font-bold text-text-warm-900">QR code created</h1>
           <p className="mt-3 text-base text-text-warm-600">
@@ -90,9 +90,7 @@ export default function QrCodeInput() {
   }
 
   return (
-    <main className="mx-auto max-w-md px-4 py-8">
-      <h1 className="text-[32px] font-bold text-text-warm-900">Create a QR code</h1>
-
+    <main className="mx-auto flex min-h-[calc(100vh-57px)] max-w-sm flex-col justify-center px-4 py-8">
       {form.status === 'error' ? (
         <ErrorState
           message={
@@ -102,8 +100,12 @@ export default function QrCodeInput() {
           onRetry={() => setForm({ status: 'idle' })}
         />
       ) : (
-        <Card className="mt-4">
-          <form className="flex flex-col gap-4" onSubmit={submit}>
+        <Card>
+          <p className="mb-3 inline-block rounded-md bg-mint-50 px-3 py-1 text-sm font-medium text-leaf-green">
+            New code
+          </p>
+          <h1 className="text-2xl font-bold text-text-warm-900">Create a QR code</h1>
+          <form className="mt-4 flex flex-col gap-4" onSubmit={submit}>
             <Input
               label="Title"
               value={title}
