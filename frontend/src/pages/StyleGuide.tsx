@@ -1,5 +1,6 @@
 import Button from '../components/Button'
 import Card from '../components/Card'
+import Header from '../components/Header'
 import Input from '../components/Input'
 import { SunflowerMark, SunflowerWordmark } from '../components/Logo'
 
@@ -95,11 +96,25 @@ export default function StyleGuide() {
 
         <section className="mt-10">
           <h2 className="text-2xl font-bold text-text-warm-900">Card</h2>
-          <Card className="mt-4">
-            <p className="text-base text-text-warm-900">
-              Cards are simple bordered, padded containers with a subtle shadow.
-            </p>
-          </Card>
+          <p className="mt-2 text-base text-text-warm-600">
+            <code>variant="boxed"</code> (default) is the bordered, padded
+            panel. <code>variant="plain"</code> drops the border/shadow/
+            padding for full-bleed content, used by the active Emergency
+            Guide View.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card>
+              <p className="text-base text-text-warm-900">
+                variant="boxed" — bordered, padded, subtle shadow.
+              </p>
+            </Card>
+            <Card variant="plain" className="border border-dashed border-border-warm-200 p-4">
+              <p className="text-base text-text-warm-900">
+                variant="plain" — no border/shadow/background of its own
+                (dashed outline added here only to show its bounds).
+              </p>
+            </Card>
+          </div>
         </section>
 
         <section className="mt-10">
@@ -120,8 +135,13 @@ export default function StyleGuide() {
           <h2 className="text-2xl font-bold text-text-warm-900">Header</h2>
           <p className="mt-2 text-base text-text-warm-600">
             The site header is rendered above on every page (brand + Home /
-            Gallery / Profile nav links).
+            Gallery / Profile nav links). Passing a <code>progress</code>{' '}
+            prop (<code>{'{ step, total }'}</code>) swaps the nav for a step
+            indicator, used by the Onboarding flow.
           </p>
+          <div className="mt-4 overflow-hidden rounded-lg border border-border-warm-200">
+            <Header progress={{ step: 2, total: 3 }} />
+          </div>
         </section>
       </main>
     </div>
