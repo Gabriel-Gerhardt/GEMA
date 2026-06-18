@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { SunflowerWordmark } from './Logo'
 
 const NAV_LINKS = [
-  { to: '/', label: 'Home' },
+  { to: '/home', label: 'Home' },
   { to: '/qr/gallery', label: 'Gallery' },
   { to: '/profile', label: 'Profile' },
 ]
@@ -23,7 +23,7 @@ export default function Header({ progress }: HeaderProps = {}) {
   return (
     <header className="border-b border-border-warm-200 bg-base-white">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <NavLink to="/">
+        <NavLink to="/home">
           <SunflowerWordmark />
         </NavLink>
         {progress ? (
