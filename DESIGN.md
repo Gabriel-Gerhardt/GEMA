@@ -40,8 +40,8 @@ rendered together.
 | QR Scan | `/qr/scan` | AppLayout | Scan a QR code | Camera preview placeholder, "Start scanning" Button |
 | QR Gallery | `/qr/gallery` | AppLayout | Browse previously created/scanned codes | Grid of Cards, one per code, each linking to its detail/edit screen |
 | QR Code Detail | `/qr/:publicId/edit` | AppLayout | View/edit a single code's guide | Title + description inputs, active toggle, save/delete actions |
-| Onboarding | `/welcome` | PublicLayout | Explain the green-sunflower concept and how GEMA works pre-login | Sunflower mark, symbolism blurb, two short "how it works" steps, CTA into Create Account |
-| Emergency Guide View | `/q/:publicId` | PublicLayout | What someone sees after scanning a real GEMA QR code | Loading state, found+active guide (title + free-text description), and a calm "not active" state for missing/inactive codes |
+| Onboarding | `/welcome` | PublicLayout | Explain the green-sunflower concept and how GEMA works pre-login | A 3-step flow (mark + symbolism blurb; "Create a QR code"; "Share it" + CTA) with Back/Next navigation and a `Header` step-progress indicator; CTA into Create Account on the final step |
+| Emergency Guide View | `/q/:publicId` | PublicLayout | What someone sees after scanning a real GEMA QR code | Loading state, found+active guide rendered full-bleed (`Card variant="plain"`, title + free-text description), and a calm bounded-card "not active" state for missing/inactive codes |
 | Not Found | `*` | PublicLayout | Branded 404 | Sunflower mark, friendly copy, link back to `/` |
 | Style Guide | `/style-guide` | AppLayout | Developer-facing design system reference | All color swatches, full type scale, logo, all Button/Input/Card variants |
 
@@ -73,8 +73,8 @@ explicit TypeScript prop interfaces.
 | --- | --- | --- |
 | `Button` | `variant`: `primary` \| `secondary` \| `danger`; `disabled` | Extends native `button` props. Primary = green fill, Secondary = white/outlined, Danger = red fill. Disabled state dims opacity and blocks pointer events. |
 | `Input` | `label` (required), `helperText`, `errorText` | Renders a `<label>` + `<input>` pair with an `id` generated via `useId` when not supplied. When `errorText` is set, the border/ring turn red and the error text replaces any helper text. |
-| `Card` | — | Bordered, padded container with a subtle warm-tinted shadow and a slightly asymmetric corner radius (organic feel) instead of uniform rounded corners. |
-| `Header` | — | Renders `SunflowerWordmark` + nav links (Home, Gallery, Profile). Uses `flex-wrap` so it degrades gracefully on narrow viewports without a hamburger menu. |
+| `Card` | `variant`: `boxed` (default) \| `plain` | `boxed` is a bordered, padded container with a subtle warm-tinted shadow and a slightly asymmetric corner radius (organic feel) instead of uniform rounded corners. `plain` drops the border/shadow/background/padding for full-bleed content — used by the active `EmergencyGuideView` state (see "Layout & composition" below). |
+| `Header` | `progress?: { step, total }` | Renders `SunflowerWordmark` + nav links (Home, Gallery, Profile) by default. Uses `flex-wrap` so it degrades gracefully on narrow viewports without a hamburger menu. When `progress` is supplied, renders a "Step X of Y" indicator with step dots instead of the nav links — used by the `Onboarding` flow. |
 | `Logo` (`SunflowerMark`, `SunflowerWordmark`) | `size`, `className` | `SunflowerMark` is the icon-only mark (green petals, gold-brown center). `SunflowerWordmark` pairs it with the "GEMA" text for header/lockup use. A simplified static SVG copy lives at `frontend/public/favicon.svg`. |
 
 ## Color palette
@@ -140,6 +140,44 @@ links and badge text:
 As before: **never use a fill-only accent color as a standalone text color.**
 If a tone isn't listed above as text-safe, treat it as a fill, border, or
 icon color only.
+
+## Layout & composition
+
+GAB-29 redefined how pages are *arranged*, leaving every color token, the
+sunflower mark, and the type scale above untouched. Where the original
+screen inventory used one de-facto shape ("centered card + stacked
+inputs") for nearly every page regardless of purpose, screens now map onto
+one of six named layout archetypes, chosen by the page's actual job
+(setup task vs. crisis read vs. dashboard vs. browse vs. record-editing
+vs. step-by-step explainer):
+
+| Archetype | Structure | Screens |
+| --- | --- | --- |
+| **A — Calm data-entry form** | Narrow column (`max-w-sm`), vertically centered rather than pinned to the top. A single `Card` holds a contextual eyebrow label, the H1, the field stack, and the primary action; the "switch task" secondary link sits below the card, outside the task boundary. | `Login`, `CreateAccount`, `QrCodeInput` (create + success states) |
+| **B — Crisis-read public guide** | Full-bleed: the found+active guide sits directly on the page background via `Card variant="plain"` — no bordered panel competing with the content. Single column, `max-w-prose` line length, eyebrow label as plain text, large heading, body text as the dominant element. The loading/error/unavailable states keep the bounded `Card` (`variant="boxed"`, the default) since they're brief status notes, not primary content. | `EmergencyGuideView` (ready state full-bleed; loading/error/unavailable stay boxed) |
+| **C — Dashboard / landing** | Two-zone layout: a top action zone (greeting + primary actions as a button row) and a bottom "Recent activity" zone, promoted to a responsive grid of compact cards with an explicit empty-state message rather than a single placeholder card. | `Home` |
+| **D — Browse / gallery** | Grid of cards, each a horizontal row (small leading thumbnail/status swatch beside the title/date text, not stacked above it) so a grid of many cards scans quickly. 3-column on wide viewports. | `QrCodeGallery` |
+| **E — Profile / browse-and-edit** | Identity/context zone, separated by a rule from a stats/fact zone (a labeled stat, not an inline sentence), separated by a rule from the actions zone — with the destructive action (delete) visually deprioritized (smaller, set apart) relative to the primary action instead of sitting at equal weight beside it. | `UserProfile`, `QrCodeDetail` |
+| **F — Narrative onboarding (multi-step)** | A 3-step flow within the single `/welcome` route (no new route): step 1 is the sunflower mark + symbolism blurb alone; step 2 is "Create a QR code"; step 3 is "Share it" plus the final CTA. A consistent Back/Next (or Back/Get started) button pair anchors the bottom of every step. The `Header`'s `progress` mode renders a "Step X of Y" indicator with step dots in place of the nav links for this flow. Step state is client-side only (resets on reload) and the indicator is informational — it doesn't support jumping to a step. | `Onboarding` |
+
+`NotFound` follows the same "bounded status card on the plain background"
+logic as archetype B's loading/error/unavailable states (a brief, calm
+message, not primary content), without being assigned a full archetype of
+its own. `StyleGuide` is a developer reference page, not a user-facing
+screen, and stays a plain documentation layout (loosely following
+archetype D's grid for its swatches).
+
+### Component changes that support the archetypes
+
+- **`Card`** gained a `variant?: 'boxed' | 'plain'` prop (default `'boxed'`,
+  unchanged from before). `'plain'` drops the border/shadow/background/
+  padding, used only by archetype B's full-bleed treatment.
+- **`Header`** gained an optional `progress?: { step: number; total: number }`
+  prop. When set, it renders a "Step X of Y" indicator with step dots
+  instead of the Home/Gallery/Profile nav links — used only by archetype
+  F's `/welcome` flow (wired through `PublicLayout` in `App.tsx`).
+- `Button`, `Input`, and `Logo` are unchanged — every archetype above is
+  built from their existing APIs.
 
 ## Trying it out
 
