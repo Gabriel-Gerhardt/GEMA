@@ -3,6 +3,7 @@ package com.gema.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.adapters.dto.response.QrcodeCreateResponse;
 import com.gema.adapters.dto.response.QrcodeResponse;
+import com.gema.core.service.JwtService;
 import com.gema.core.service.QrcodeService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
@@ -14,6 +15,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -27,7 +29,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(QrcodeController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class})
+@Import({BeanConfig.class, GlobalExceptionHandler.class, JwtService.class})
+@WithMockUser
 class QrcodeControllerTest {
 
     @Autowired
