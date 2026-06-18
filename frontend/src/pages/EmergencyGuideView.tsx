@@ -107,13 +107,11 @@ export default function EmergencyGuideView() {
   const { guide } = state
 
   return (
-    <main className="mx-auto max-w-md px-4 py-12">
-      <Card>
-        <p className="mb-3 inline-block rounded-md bg-mint-50 px-3 py-1 text-sm font-medium text-leaf-green">
-          Support guide
-        </p>
-        <h1 className="text-2xl font-bold text-text-warm-900">{guide.title}</h1>
-        <p className="mt-4 whitespace-pre-line text-base text-text-warm-900">
+    <main className="mx-auto max-w-prose px-4 py-12">
+      <Card variant="plain">
+        <p className="text-sm font-medium text-leaf-green">Support guide</p>
+        <h1 className="mt-2 text-[32px] font-bold text-text-warm-900">{guide.title}</h1>
+        <p className="mt-6 whitespace-pre-line text-base text-text-warm-900">
           {guide.description}
         </p>
       </Card>
