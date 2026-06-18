@@ -13,3 +13,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-insecure-secret-please-override-CHANGE_ME_32_BYTES_MIN}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
