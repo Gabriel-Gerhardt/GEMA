@@ -1,13 +1,13 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
-import Header from './components/Header'
+import Header, { type HeaderProgress } from './components/Header'
 import { SunflowerMark } from './components/Logo'
 import CreateAccount from './pages/CreateAccount'
 import EmergencyGuideView from './pages/EmergencyGuideView'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
-import Onboarding from './pages/Onboarding'
+import Onboarding, { ONBOARDING_TOTAL_STEPS } from './pages/Onboarding'
 import QrCodeDetail from './pages/QrCodeDetail'
 import QrCodeGallery from './pages/QrCodeGallery'
 import QrCodeInput from './pages/QrCodeInput'
@@ -25,8 +25,24 @@ function AppLayout({ children }: { children: ReactNode }) {
 }
 
 /** Minimal shell for pages reachable without being logged in (e.g. a
- * scanned QR code's public guide): just the brand mark, no nav/Login link. */
-function PublicLayout({ children }: { children: ReactNode }) {
+ * scanned QR code's public guide): just the brand mark, no nav/Login link.
+ * When `progress` is set (the Onboarding flow), swaps the mark-only strip
+ * for the full Header in its step-indicator mode. */
+function PublicLayout({
+  children,
+  progress,
+}: {
+  children: ReactNode
+  progress?: HeaderProgress
+}) {
+  if (progress) {
+    return (
+      <>
+        <Header progress={progress} />
+        {children}
+      </>
+    )
+  }
   return (
     <>
       <div className="border-b border-border-warm-200 bg-base-white px-4 py-3">
@@ -37,11 +53,22 @@ function PublicLayout({ children }: { children: ReactNode }) {
   )
 }
 
+/** Hosts Onboarding's step state so the surrounding PublicLayout's Header
+ * can show a synced "Step X of Y" indicator instead of the plain mark. */
+function OnboardingRoute() {
+  const [step, setStep] = useState(1)
+  return (
+    <PublicLayout progress={{ step, total: ONBOARDING_TOTAL_STEPS }}>
+      <Onboarding step={step} onStepChange={setStep} />
+    </PublicLayout>
+  )
+}
+
 function App() {
   return (
     <Routes>
       <Route path="/q/:publicId" element={<PublicLayout><EmergencyGuideView /></PublicLayout>} />
-      <Route path="/welcome" element={<PublicLayout><Onboarding /></PublicLayout>} />
+      <Route path="/welcome" element={<OnboardingRoute />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
       <Route path="/create-account" element={<AppLayout><CreateAccount /></AppLayout>} />
