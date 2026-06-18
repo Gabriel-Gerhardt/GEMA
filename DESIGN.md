@@ -33,7 +33,8 @@ rendered together.
 
 | Screen | Route | Layout | Purpose | Key elements |
 | --- | --- | --- | --- | --- |
-| Home | `/` | AppLayout | Landing/dashboard after login | Hero copy, primary CTAs (scan / gallery), recent activity card |
+| Landing Page | `/` | PublicLayout | Public marketing entry point for logged-out visitors | `SunflowerMark`, hero H1/sub-copy, primary CTA Button to `/home`, secondary "Entrar" link to `/login`, "Quem somos" boxed Card, 3-card grid explaining the product flow |
+| Home | `/home` | AppLayout | Landing/dashboard after login | Hero copy, primary CTAs (scan / gallery), recent activity card |
 | Login | `/login` | AppLayout | Authenticate an existing user | Email/password Input fields, primary submit Button, link to Create Account |
 | Create Account | `/create-account` | AppLayout | Register a new user | Name/email/password Input fields, primary submit Button, links to Login and to `/welcome` |
 | Profile | `/profile` | AppLayout | View/manage the current user | User name/email card, QR codes created count, edit/delete actions |
