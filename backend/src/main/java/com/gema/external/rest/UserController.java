@@ -1,8 +1,8 @@
 package com.gema.external.rest;
 
 import com.gema.adapters.dto.request.UserSaveRequest;
+import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.core.service.UserService;
-import com.gema.external.exception.BadRequestException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +21,10 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<Void> createUser(@RequestBody @Valid UserSaveRequest request){
+    public ResponseEntity<AuthResponse> createUser(@RequestBody @Valid UserSaveRequest request){
 
-        service.createUser(request.username(), request.password(), request.role());
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        String token = service.createUser(request.username(), request.password(), request.role());
+        return ResponseEntity.status(HttpStatus.CREATED).body(new AuthResponse(token));
     }
 
 
