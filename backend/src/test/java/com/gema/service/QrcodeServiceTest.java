@@ -75,6 +75,32 @@ class QrcodeServiceTest {
     }
 
     @Test
+    void createQrcode_blankDescription_throwsBadRequestException_andNeverSaves() {
+        // Arrange
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", "   ", 1L);
+
+        // Act & Assert
+        assertThatThrownBy(() -> qrcodeService.createQrcode(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(userRepository, never()).findById(any());
+        verify(qrcodeRepository, never()).save(any());
+    }
+
+    @Test
+    void createQrcode_descriptionWithCarriageReturn_throwsBadRequestException_andNeverSaves() {
+        // Arrange
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", "line1\rline2", 1L);
+
+        // Act & Assert
+        assertThatThrownBy(() -> qrcodeService.createQrcode(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(userRepository, never()).findById(any());
+        verify(qrcodeRepository, never()).save(any());
+    }
+
+    @Test
     void createQrcode_invalidUserId_throwsBadRequestException() {
         // Arrange
         Long userId = 99L;
@@ -137,9 +163,121 @@ class QrcodeServiceTest {
         // Assert
         assertThat(response.publicId()).isEqualTo(publicId);
         assertThat(response.title()).isEqualTo("Test QR");
-        assertThat(response.description()).isEqualTo("https://example.com");
-        assertThat(response.isActive()).isTrue();
+        assertThat(response.content()).isEqualTo("https://example.com");
+        assertThat(response.active()).isTrue();
         assertThat(response.createdAt()).isEqualTo(createdAt);
+    }
+
+    @Test
+    void toResponse_mapsAllFieldsCorrectly_andIsDeterministic() {
+        // Arrange
+        LocalDateTime createdAt = LocalDateTime.of(2024, 1, 15, 10, 30);
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId("test-public-id");
+        entity.setTitle("Test QR");
+        entity.setContent("https://example.com");
+        entity.setActive(true);
+        entity.setCreatedAt(createdAt);
+
+        // Act
+        QrcodeResponse first = qrcodeService.toResponse(entity);
+        QrcodeResponse second = qrcodeService.toResponse(entity);
+
+        // Assert field-by-field mapping
+        assertThat(first.publicId()).isEqualTo("test-public-id");
+        assertThat(first.title()).isEqualTo("Test QR");
+        assertThat(first.content()).isEqualTo("https://example.com");
+        assertThat(first.active()).isTrue();
+        assertThat(first.createdAt()).isEqualTo(createdAt);
+
+        // Assert determinism: calling twice with same input yields equal output
+        assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    void toResponse_inactiveQrcode_mapsActiveFalse() {
+        // Arrange
+        LocalDateTime createdAt = LocalDateTime.of(2024, 1, 15, 10, 30);
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId("inactive-id");
+        entity.setTitle("Inactive QR");
+        entity.setContent("https://example.com/inactive");
+        entity.setActive(false);
+        entity.setCreatedAt(createdAt);
+
+        // Act
+        QrcodeResponse response = qrcodeService.toResponse(entity);
+
+        // Assert
+        assertThat(response.active()).isFalse();
+        assertThat(response.publicId()).isEqualTo("inactive-id");
+        assertThat(response.content()).isEqualTo("https://example.com/inactive");
+    }
+
+    @Test
+    void getQrcodeByPublicId_inactiveQrcode_stillReturnedWithActiveFalse() {
+        // Arrange: the resolve endpoint does not filter out inactive codes, it just reports status
+        String publicId = "inactive-public-id";
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId(publicId);
+        entity.setTitle("Inactive QR");
+        entity.setContent("https://example.com");
+        entity.setActive(false);
+        entity.setCreatedAt(LocalDateTime.now());
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(entity));
+
+        // Act
+        QrcodeResponse response = qrcodeService.getQrcodeByPublicId(publicId);
+
+        // Assert
+        assertThat(response.active()).isFalse();
+    }
+
+    @Test
+    void createQrcode_multilineContentWithTabsAndNewlines_isSavedVerbatim() {
+        // Arrange
+        Long userId = 1L;
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+
+        String multilineContent = "line1\tcol2\nline2\tcol2\n\tindented";
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", multilineContent, userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        qrcodeService.createQrcode(request);
+
+        // Assert
+        ArgumentCaptor<QrcodeEntity> captor = ArgumentCaptor.forClass(QrcodeEntity.class);
+        verify(qrcodeRepository).save(captor.capture());
+        assertThat(captor.getValue().getContent()).isEqualTo(multilineContent);
+    }
+
+    @Test
+    void createQrcode_emojiContent_isSavedVerbatim() {
+        // Arrange: surrogate-pair characters must pass through the sanitizer and persist unmodified
+        Long userId = 1L;
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+
+        String emojiContent = "https://example.com/😀party";
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", emojiContent, userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        qrcodeService.createQrcode(request);
+
+        // Assert
+        ArgumentCaptor<QrcodeEntity> captor = ArgumentCaptor.forClass(QrcodeEntity.class);
+        verify(qrcodeRepository).save(captor.capture());
+        assertThat(captor.getValue().getContent()).isEqualTo(emojiContent);
     }
 
     @Test
