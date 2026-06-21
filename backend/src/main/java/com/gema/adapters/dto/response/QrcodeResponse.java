@@ -5,8 +5,8 @@ import java.time.LocalDateTime;
 public record QrcodeResponse(
         String publicId,
         String title,
-        String content,
-        boolean active,
+        String description,
+        boolean isActive,
         LocalDateTime createdAt
 ) {
 }
