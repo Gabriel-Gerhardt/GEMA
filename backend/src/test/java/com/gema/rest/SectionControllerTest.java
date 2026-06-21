@@ -2,6 +2,7 @@ package com.gema.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.adapters.dto.response.SectionCreateResponse;
+import com.gema.core.service.JwtService;
 import com.gema.core.service.SectionService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -27,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(SectionController.class)
 @Import({BeanConfig.class, GlobalExceptionHandler.class})
+@WithMockUser
 class SectionControllerTest {
 
     @Autowired
@@ -37,6 +40,9 @@ class SectionControllerTest {
 
     @MockBean
     private SectionService service;
+
+    @MockBean
+    private JwtService jwtService;
 
     // -----------------------------------------------------------------------
     // POST /api/q/{publicId}/sections

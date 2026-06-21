@@ -3,6 +3,7 @@ package com.gema.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
+import com.gema.core.service.QrcodeImageService;
 import com.gema.core.service.QrcodeService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
@@ -46,6 +47,9 @@ class JwtAuthenticationFilterTest {
 
     @MockBean
     private QrcodeService service;
+
+    @MockBean
+    private QrcodeImageService imageService;
 
     private String requestBody() throws Exception {
         Map<String, Object> body = Map.of(

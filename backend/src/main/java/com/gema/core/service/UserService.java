@@ -23,7 +23,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository, QrcodeRepository qrcodeRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, QrcodeRepository qrcodeRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.qrcodeRepository = qrcodeRepository;
         this.passwordEncoder = passwordEncoder;

@@ -1,16 +1,13 @@
 package com.gema.service;
 
+import com.gema.adapters.dto.response.UserDetailsResponse;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
+import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
 import com.gema.external.exception.UnauthorizedException;
-import com.gema.adapters.dto.response.UserDetailsResponse;
-import com.gema.core.model.Role;
-import com.gema.core.service.UserService;
-import com.gema.external.entity.QrcodeEntity;
-import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.UserNotFoundException;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
@@ -38,6 +35,8 @@ class UserServiceTest {
 
     @Mock
     private JwtService jwtService;
+
+    @Mock
     private QrcodeRepository qrcodeRepository;
 
     @Mock
@@ -47,7 +46,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtService);
+        userService = new UserService(userRepository, qrcodeRepository, passwordEncoder, jwtService);
     }
 
     @Test
@@ -100,7 +99,6 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.login("ghost", "password123"))
                 .isInstanceOf(UnauthorizedException.class);
-        userService = new UserService(userRepository, qrcodeRepository, passwordEncoder);
     }
 
     @Test
