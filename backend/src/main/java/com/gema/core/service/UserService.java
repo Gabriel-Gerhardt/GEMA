@@ -48,32 +48,32 @@ public class UserService {
     }
 
     public AuthResponse login(String username, String password) {
-        Optional<UserEntity> maybeUser = userRepository.findByUsername(username);
+        Optional<UserEntity> userOptional = userRepository.findByUsername(username);
 
-        if (!credentialsAreValid(maybeUser, password)) {
+        if (!credentialsAreValid(userOptional, password)) {
             throw new UnauthorizedException("Invalid username or password");
         }
 
-        UserEntity user = maybeUser.get();
+        UserEntity user = userOptional.get();
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token);
     }
 
     /**
      * Checks whether {@code password} is the correct password for the user in
-     * {@code maybeUser}.
+     * {@code userOptional}.
      *
      * <p>Always runs a bcrypt comparison, even for an unknown user (against
      * the dummy hash), so response timing can't be used to enumerate
      * usernames.
      *
-     * @param maybeUser the looked-up user, or empty if the username doesn't exist
-     * @param password  the plaintext password supplied by the caller
+     * @param userOptional the looked-up user, or empty if the username doesn't exist
+     * @param password the plaintext password supplied by the caller
      * @return {@code true} only if the user exists and the password matches
      */
-    private boolean credentialsAreValid(Optional<UserEntity> maybeUser, String password) {
-        String hashToCheck = maybeUser.map(UserEntity::getPasswordHash).orElse(DUMMY_PASSWORD_HASH);
+    private boolean credentialsAreValid(Optional<UserEntity> userOptional, String password) {
+        String hashToCheck = userOptional.map(UserEntity::getPasswordHash).orElse(DUMMY_PASSWORD_HASH);
         boolean passwordMatches = passwordEncoder.matches(password, hashToCheck);
-        return maybeUser.isPresent() && passwordMatches;
+        return userOptional.isPresent() && passwordMatches;
     }
 }
