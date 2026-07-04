@@ -17,7 +17,8 @@ public class UserService {
 
     /**
      * Structurally valid bcrypt hash with no corresponding known password.
-     * Used to run a dummy password comparison when the username doesn't
+     *
+     * <p>Used to run a dummy password comparison when the username doesn't
      * exist, so an unknown-username login takes the same time as a
      * wrong-password one and can't be timed to enumerate usernames.
      */
@@ -59,8 +60,16 @@ public class UserService {
     }
 
     /**
-     * Always runs a bcrypt comparison, even for an unknown user (against the
-     * dummy hash), so response timing can't be used to enumerate usernames.
+     * Checks whether {@code password} is the correct password for the user in
+     * {@code maybeUser}.
+     *
+     * <p>Always runs a bcrypt comparison, even for an unknown user (against
+     * the dummy hash), so response timing can't be used to enumerate
+     * usernames.
+     *
+     * @param maybeUser the looked-up user, or empty if the username doesn't exist
+     * @param password  the plaintext password supplied by the caller
+     * @return {@code true} only if the user exists and the password matches
      */
     private boolean credentialsAreValid(Optional<UserEntity> maybeUser, String password) {
         String hashToCheck = maybeUser.map(UserEntity::getPasswordHash).orElse(DUMMY_PASSWORD_HASH);

@@ -18,5 +18,9 @@ app:
   jwt:
     # Dev-only default, mirrors the datasource credentials above. Override
     # via JWT_SECRET in any real environment.
+    # TODO: these values are meant to be supplied per Spring profile
+    # (application-{profile}.yaml) once staging/prod profiles exist, and
+    # eventually sourced from a Spring Cloud Config server instead of being
+    # env-vars read directly by each instance.
     secret: ${JWT_SECRET:dev-only-insecure-secret-key-please-override-via-JWT_SECRET-env-var}
     expiration-ms: ${JWT_EXPIRATION_MS:3600000}
