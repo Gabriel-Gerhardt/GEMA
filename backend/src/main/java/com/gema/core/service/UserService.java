@@ -48,15 +48,23 @@ public class UserService {
 
     public AuthResponse login(String username, String password) {
         Optional<UserEntity> maybeUser = userRepository.findByUsername(username);
-        String hashToCheck = maybeUser.map(UserEntity::getPasswordHash).orElse(DUMMY_PASSWORD_HASH);
-        boolean passwordMatches = passwordEncoder.matches(password, hashToCheck);
 
-        if (maybeUser.isEmpty() || !passwordMatches) {
+        if (!credentialsAreValid(maybeUser, password)) {
             throw new UnauthorizedException("Invalid username or password");
         }
 
-        UserEntity entity = maybeUser.get();
-        String token = jwtService.generateToken(entity.getUsername(), entity.getRole());
+        UserEntity user = maybeUser.get();
+        String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token);
+    }
+
+    /**
+     * Always runs a bcrypt comparison, even for an unknown user (against the
+     * dummy hash), so response timing can't be used to enumerate usernames.
+     */
+    private boolean credentialsAreValid(Optional<UserEntity> maybeUser, String password) {
+        String hashToCheck = maybeUser.map(UserEntity::getPasswordHash).orElse(DUMMY_PASSWORD_HASH);
+        boolean passwordMatches = passwordEncoder.matches(password, hashToCheck);
+        return maybeUser.isPresent() && passwordMatches;
     }
 }
