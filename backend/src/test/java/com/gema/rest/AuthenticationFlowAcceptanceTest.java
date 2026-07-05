@@ -8,6 +8,7 @@ import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
 import com.gema.external.entity.UserEntity;
+import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
 import com.gema.external.rest.AuthController;
 import com.gema.external.rest.UserController;
@@ -71,6 +72,9 @@ class AuthenticationFlowAcceptanceTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    @MockBean
+    private QrcodeRepository qrcodeRepository;
 
     @Test
     void registerThenLogin_fullJourney_bothLegsReturnTokensForTheSameUser() throws Exception {
