@@ -7,6 +7,7 @@ import com.gema.external.exception.RestException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,6 +35,22 @@ public class GlobalExceptionHandler {
 
         ApiResponse apiResponse = new ApiResponse(
                 "VALIDATION_ERROR",
+                message,
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(apiResponse);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+
+        String message = "Invalid value for parameter '" + ex.getName() + "'";
+
+        ApiResponse apiResponse = new ApiResponse(
+                "INVALID_REQUEST_PARAMETER",
                 message,
                 HttpStatus.BAD_REQUEST.value()
         );
