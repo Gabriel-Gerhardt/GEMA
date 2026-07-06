@@ -36,7 +36,7 @@ public class QrcodeService {
                 publicId,
                 request.title(),
                 true,
-                request.description(),
+                request.content(),
                 user,
                 now,
                 now
