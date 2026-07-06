@@ -75,6 +75,32 @@ class QrcodeServiceTest {
     }
 
     @Test
+    void createQrcode_blankContent_throwsBadRequestException_andNeverSaves() {
+        // Arrange
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", "   ", 1L);
+
+        // Act & Assert
+        assertThatThrownBy(() -> qrcodeService.createQrcode(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(userRepository, never()).findById(any());
+        verify(qrcodeRepository, never()).save(any());
+    }
+
+    @Test
+    void createQrcode_contentWithCarriageReturn_throwsBadRequestException_andNeverSaves() {
+        // Arrange
+        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", "line1\rline2", 1L);
+
+        // Act & Assert
+        assertThatThrownBy(() -> qrcodeService.createQrcode(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(userRepository, never()).findById(any());
+        verify(qrcodeRepository, never()).save(any());
+    }
+
+    @Test
     void createQrcode_invalidUserId_throwsBadRequestException() {
         // Arrange
         Long userId = 99L;
@@ -137,9 +163,55 @@ class QrcodeServiceTest {
         // Assert
         assertThat(response.publicId()).isEqualTo(publicId);
         assertThat(response.title()).isEqualTo("Test QR");
-        assertThat(response.description()).isEqualTo("https://example.com");
+        assertThat(response.content()).isEqualTo("https://example.com");
         assertThat(response.isActive()).isTrue();
         assertThat(response.createdAt()).isEqualTo(createdAt);
+    }
+
+    @Test
+    void toResponse_mapsAllFieldsCorrectly_andIsDeterministic() {
+        // Arrange
+        LocalDateTime createdAt = LocalDateTime.of(2024, 1, 15, 10, 30);
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId("test-public-id");
+        entity.setTitle("Test QR");
+        entity.setContent("https://example.com");
+        entity.setActive(true);
+        entity.setCreatedAt(createdAt);
+
+        // Act
+        QrcodeResponse first = qrcodeService.toResponse(entity);
+        QrcodeResponse second = qrcodeService.toResponse(entity);
+
+        // Assert field-by-field mapping
+        assertThat(first.publicId()).isEqualTo("test-public-id");
+        assertThat(first.title()).isEqualTo("Test QR");
+        assertThat(first.content()).isEqualTo("https://example.com");
+        assertThat(first.isActive()).isTrue();
+        assertThat(first.createdAt()).isEqualTo(createdAt);
+
+        // Assert determinism: calling twice with same input yields equal output
+        assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    void toResponse_inactiveQrcode_mapsIsActiveFalse() {
+        // Arrange
+        LocalDateTime createdAt = LocalDateTime.of(2024, 1, 15, 10, 30);
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId("inactive-id");
+        entity.setTitle("Inactive QR");
+        entity.setContent("https://example.com/inactive");
+        entity.setActive(false);
+        entity.setCreatedAt(createdAt);
+
+        // Act
+        QrcodeResponse response = qrcodeService.toResponse(entity);
+
+        // Assert
+        assertThat(response.isActive()).isFalse();
+        assertThat(response.publicId()).isEqualTo("inactive-id");
+        assertThat(response.content()).isEqualTo("https://example.com/inactive");
     }
 
     @Test
