@@ -1,12 +1,16 @@
 package com.gema.service;
 
 import com.gema.adapters.dto.response.AuthResponse;
+import com.gema.adapters.dto.response.UserDetailsResponse;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
+import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
+import com.gema.external.exception.NotFoundException;
 import com.gema.external.exception.UnauthorizedException;
+import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +37,9 @@ class UserServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private QrcodeRepository qrcodeRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -41,7 +49,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtService);
+        userService = new UserService(userRepository, qrcodeRepository, passwordEncoder, jwtService);
     }
 
     @Test
@@ -120,5 +128,55 @@ class UserServiceTest {
                 .hasMessage("Invalid username or password");
 
         verifyNoInteractions(jwtService);
+    }
+
+    @Test
+    void getUserDetails_userWithQrcodes_returnsUserAndQrcodes() {
+        // Arrange
+        UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        QrcodeEntity qrcode = new QrcodeEntity(10L, "public-id-1", "Emergency card", true, "content-1", user, now, now);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.findByUser_Id(1L)).thenReturn(List.of(qrcode));
+
+        // Act
+        UserDetailsResponse response = userService.getUserDetails(1L);
+
+        // Assert
+        assertThat(response.username()).isEqualTo("alice");
+        assertThat(response.role()).isEqualTo(Role.USER);
+        assertThat(response.qrcodes()).hasSize(1);
+        assertThat(response.qrcodes().get(0).publicId()).isEqualTo("public-id-1");
+        assertThat(response.qrcodes().get(0).title()).isEqualTo("Emergency card");
+        assertThat(response.qrcodes().get(0).isActive()).isTrue();
+        assertThat(response.qrcodes().get(0).content()).isEqualTo("content-1");
+    }
+
+    @Test
+    void getUserDetails_userWithNoQrcodes_returnsEmptyList() {
+        // Arrange
+        UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.findByUser_Id(1L)).thenReturn(List.of());
+
+        // Act
+        UserDetailsResponse response = userService.getUserDetails(1L);
+
+        // Assert
+        assertThat(response.qrcodes()).isEmpty();
+    }
+
+    @Test
+    void getUserDetails_userNotFound_throwsNotFound() {
+        // Arrange
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> userService.getUserDetails(99L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("User not found");
+
+        verifyNoInteractions(qrcodeRepository);
     }
 }

@@ -1,15 +1,21 @@
 package com.gema.core.service;
 
 import com.gema.adapters.dto.response.AuthResponse;
+import com.gema.adapters.dto.response.UserDetailsResponse;
+import com.gema.adapters.dto.response.UserQrcodeResponse;
 import com.gema.core.model.Role;
+import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
+import com.gema.external.exception.NotFoundException;
 import com.gema.external.exception.UnauthorizedException;
+import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -25,11 +31,14 @@ public class UserService {
     private static final String DUMMY_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     private final UserRepository userRepository;
+    private final QrcodeRepository qrcodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public UserService(UserRepository userRepository, QrcodeRepository qrcodeRepository,
+                        PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
+        this.qrcodeRepository = qrcodeRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
@@ -57,6 +66,26 @@ public class UserService {
         UserEntity user = userOptional.get();
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token);
+    }
+
+    public UserDetailsResponse getUserDetails(Long id) {
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<UserQrcodeResponse> qrcodes = qrcodeRepository.findByUser_Id(id).stream()
+                .map(this::toUserQrcodeResponse)
+                .toList();
+
+        return new UserDetailsResponse(user.getUsername(), user.getRole(), qrcodes);
+    }
+
+    private UserQrcodeResponse toUserQrcodeResponse(QrcodeEntity entity) {
+        return new UserQrcodeResponse(
+                entity.getPublicId(),
+                entity.getTitle(),
+                entity.isActive(),
+                entity.getContent()
+        );
     }
 
     /**

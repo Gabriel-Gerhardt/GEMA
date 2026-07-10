@@ -6,6 +6,7 @@ import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.UnauthorizedException;
+import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -66,6 +67,9 @@ class UserServiceJwtWiringTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private QrcodeRepository qrcodeRepository;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final JwtService jwtService = new JwtService(SECRET, EXPIRATION_MS);
 
@@ -73,7 +77,7 @@ class UserServiceJwtWiringTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtService);
+        userService = new UserService(userRepository, qrcodeRepository, passwordEncoder, jwtService);
     }
 
     private Claims decode(String token) {
