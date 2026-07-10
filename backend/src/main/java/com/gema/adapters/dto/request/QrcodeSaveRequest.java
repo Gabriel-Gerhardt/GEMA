@@ -9,7 +9,7 @@ public record QrcodeSaveRequest(
         String title,
 
         @NotBlank
-        String description,
+        String content,
 
         @NotNull
         Long userId

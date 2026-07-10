@@ -25,6 +25,8 @@ public class QrcodeService {
     }
 
     public String createQrcode(QrcodeSaveRequest request) {
+        QrcodeContentSanitizer.validate(request.content());
+
         UserEntity user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new BadRequestException("User not found"));
 
@@ -36,7 +38,7 @@ public class QrcodeService {
                 publicId,
                 request.title(),
                 true,
-                request.description(),
+                request.content(),
                 user,
                 now,
                 now
@@ -50,6 +52,10 @@ public class QrcodeService {
         QrcodeEntity entity = qrcodeRepository.findByPublicId(publicId)
                 .orElseThrow(() -> new NotFoundException("QR code not found"));
 
+        return toResponse(entity);
+    }
+
+    public QrcodeResponse toResponse(QrcodeEntity entity) {
         return new QrcodeResponse(
                 entity.getPublicId(),
                 entity.getTitle(),
