@@ -13,10 +13,6 @@ Example:
 - QR code is scanned in an emergency  
 - Relevant information is displayed instantly  
 
-## Diagram
-
-<C4 model or sequence diagram showing system flow and components>
-
 ## Tech Stack
 
 - Java 21 + Spring Boot (backend)
