@@ -1,6 +1,6 @@
 # GEMA
 
-QrCode website that will allow personalized qr codes for autistics or others syndromes in case they get lost or enter in a crisis.
+QrCode app that will allow personalized qr codes for autistics or others syndromes in case they get lost or enter in a crisis.
 The QR will contain necessary information/guideline that will help others to support the person in case of emergency
 
 ## How It Works
@@ -17,7 +17,7 @@ Example:
 
 - Java 21 + Spring Boot (backend)
 - PostgreSQL
-- React + TypeScript (frontend)
+- React Native + TypeScript (frontend)
 
 ## Architecture
 
