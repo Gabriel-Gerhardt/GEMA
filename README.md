@@ -39,7 +39,8 @@ The dependency rule is strict: the core must not depend on adapters, frameworks,
 git clone <Link>
 cd <Project name>
 cd backend
-./mvnw spring-boot:run
+./gradlew clean build
+./gradlew bootrun
 
 cd frontend
 npm install
