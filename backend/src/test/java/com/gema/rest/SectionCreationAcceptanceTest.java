@@ -3,11 +3,13 @@ package com.gema.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.core.model.Role;
+import com.gema.core.service.QrcodeImageService;
 import com.gema.core.service.QrcodeService;
 import com.gema.core.service.SectionService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
 import com.gema.external.entity.QrcodeEntity;
+import com.gema.external.entity.SectionEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.SectionRepository;
@@ -24,16 +26,20 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +79,9 @@ class SectionCreationAcceptanceTest {
     @MockBean
     private UserRepository userRepository;
 
+    @MockBean
+    private QrcodeImageService imageService;
+
     @Test
     void createQrcodeThenCreateSection_fullJourney_sectionIsAssociatedWithCreatedQrcode() throws Exception {
         // -- Create the QR code --
@@ -91,7 +100,7 @@ class SectionCreationAcceptanceTest {
 
         Map<String, Object> qrcodeBody = Map.of(
                 "title", "My QR Code",
-                "description", "A description",
+                "content", "A description",
                 "userId", 1
         );
 
@@ -143,6 +152,118 @@ class SectionCreationAcceptanceTest {
         mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(sectionBody)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createSectionThenGetAndReplace_fullJourney_replacementReplacesEarlierSections() throws Exception {
+        // -- Create the QR code --
+        UserEntity user = new UserEntity("alice", "hashed-pw", Role.USER, LocalDateTime.now());
+        user.setId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
+
+        AtomicReference<QrcodeEntity> savedQrcode = new AtomicReference<>();
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> {
+            QrcodeEntity entity = inv.getArgument(0);
+            entity.setId(5L);
+            savedQrcode.set(entity);
+            return entity;
+        });
+
+        Map<String, Object> qrcodeBody = Map.of(
+                "title", "My QR Code",
+                "content", "A description",
+                "userId", 1
+        );
+
+        MvcResult qrcodeResult = mockMvc.perform(post("/api/qrcodes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(qrcodeBody)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String publicId = readPublicId(qrcodeResult);
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(savedQrcode.get()));
+
+        // -- Create a section --
+        when(sectionRepository.save(any())).thenAnswer(inv -> {
+            var entity = inv.getArgument(0, SectionEntity.class);
+            entity.setId(42L);
+            return entity;
+        });
+
+        Map<String, Object> sectionBody = Map.of(
+                "title", "Original Title",
+                "content", "Original content"
+        );
+
+        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sectionBody)))
+                .andExpect(status().isCreated());
+
+        // -- GET reflects the created section --
+        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId))
+                .thenReturn(List.of(new SectionEntity(42L, savedQrcode.get(), "Original Title", "Original content",
+                        LocalDateTime.now(), LocalDateTime.now())));
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Original Title"));
+
+        // -- PUT replaces it with a new section --
+        when(sectionRepository.saveAll(any())).thenAnswer(inv -> {
+            List<SectionEntity> entities = inv.getArgument(0);
+            entities.forEach(e -> e.setId(99L));
+            return entities;
+        });
+
+        Map<String, Object> replaceBody = Map.of(
+                "sections", List.of(Map.of("title", "Replaced Title", "content", "Replaced content"))
+        );
+
+        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(replaceBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Replaced Title"))
+                .andExpect(jsonPath("$[0].content").value("Replaced content"));
+
+        // -- GET after PUT reflects only the replacement --
+        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId))
+                .thenReturn(List.of(new SectionEntity(99L, savedQrcode.get(), "Replaced Title", "Replaced content",
+                        LocalDateTime.now(), LocalDateTime.now())));
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Replaced Title"));
+    }
+
+    @Test
+    void getSections_qrcodeDoesNotExist_realServiceWiringReturns404() throws Exception {
+        String publicId = "does-not-exist";
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void replaceSections_qrcodeDoesNotExist_realServiceWiringReturns404() throws Exception {
+        String publicId = "does-not-exist";
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+
+        Map<String, Object> body = Map.of(
+                "sections", List.of(Map.of("title", "Title", "content", "Content"))
+        );
+
+        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound());
     }
 

@@ -1,7 +1,9 @@
 package com.gema.service;
 
+import com.gema.adapters.dto.request.SectionListSaveRequest;
 import com.gema.adapters.dto.request.SectionSaveRequest;
 import com.gema.adapters.dto.response.SectionCreateResponse;
+import com.gema.adapters.dto.response.SectionResponse;
 import com.gema.core.service.SectionService;
 import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.SectionEntity;
@@ -12,9 +14,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,5 +110,149 @@ class SectionServiceTest {
 
         verify(qrcodeRepository, never()).findById(any());
         verify(qrcodeRepository, never()).findAll();
+    }
+
+    // -----------------------------------------------------------------------
+    // getSections
+    // -----------------------------------------------------------------------
+
+    @Test
+    void getSections_happyPath_returnsSectionsOrderedById() {
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        LocalDateTime now = LocalDateTime.now();
+        SectionEntity first = new SectionEntity(10L, qrcode, "First", "Content A", now, now);
+        SectionEntity second = new SectionEntity(11L, qrcode, "Second", "Content B", now, now);
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId))
+                .thenReturn(List.of(first, second));
+
+        List<SectionResponse> response = sectionService.getSections(publicId);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).id()).isEqualTo(10L);
+        assertThat(response.get(0).title()).isEqualTo("First");
+        assertThat(response.get(1).id()).isEqualTo(11L);
+        assertThat(response.get(1).title()).isEqualTo("Second");
+        response.forEach(r -> assertThat(r.qrcodePublicId()).isEqualTo(publicId));
+    }
+
+    @Test
+    void getSections_qrcodeNotFound_throwsNotFoundException() {
+        String publicId = "nonexistent-id";
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sectionService.getSections(publicId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("QR code not found");
+
+        verify(sectionRepository, never()).findByQrcode_PublicIdOrderByIdAsc(any());
+    }
+
+    // -----------------------------------------------------------------------
+    // replaceSections
+    // -----------------------------------------------------------------------
+
+    @Test
+    void replaceSections_happyPath_deletesExistingAndInsertsNew() {
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        SectionListSaveRequest request = new SectionListSaveRequest(List.of(
+                new SectionSaveRequest("New Title", "New Content")
+        ));
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.saveAll(anyList())).thenAnswer(inv -> {
+            List<SectionEntity> entities = inv.getArgument(0);
+            long id = 100L;
+            for (SectionEntity entity : entities) {
+                entity.setId(id++);
+            }
+            return entities;
+        });
+
+        List<SectionResponse> response = sectionService.replaceSections(publicId, request);
+
+        InOrder inOrder = inOrder(sectionRepository);
+        inOrder.verify(sectionRepository).deleteByQrcode_PublicId(publicId);
+        inOrder.verify(sectionRepository).saveAll(anyList());
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).title()).isEqualTo("New Title");
+        assertThat(response.get(0).content()).isEqualTo("New Content");
+        assertThat(response.get(0).qrcodePublicId()).isEqualTo(publicId);
+    }
+
+    @Test
+    void replaceSections_emptyList_clearsAllSectionsAndReturnsEmptyList() {
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        SectionListSaveRequest request = new SectionListSaveRequest(List.of());
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.saveAll(anyList())).thenReturn(List.of());
+
+        List<SectionResponse> response = sectionService.replaceSections(publicId, request);
+
+        verify(sectionRepository).deleteByQrcode_PublicId(publicId);
+        assertThat(response).isEmpty();
+    }
+
+    @Test
+    void replaceSections_qrcodeNotFound_throwsNotFoundExceptionAndDoesNotDelete() {
+        String publicId = "nonexistent-id";
+        SectionListSaveRequest request = new SectionListSaveRequest(List.of(
+                new SectionSaveRequest("Title", "Content")
+        ));
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sectionService.replaceSections(publicId, request))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("QR code not found");
+
+        verify(sectionRepository, never()).deleteByQrcode_PublicId(any());
+        verify(sectionRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void replaceSections_calledTwiceWithSamePayload_isIdempotentInContent() {
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        SectionListSaveRequest request = new SectionListSaveRequest(List.of(
+                new SectionSaveRequest("Title", "Content")
+        ));
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.saveAll(anyList())).thenAnswer(inv -> {
+            List<SectionEntity> entities = inv.getArgument(0);
+            long id = 200L;
+            for (SectionEntity entity : entities) {
+                entity.setId(id++);
+            }
+            return entities;
+        });
+
+        List<SectionResponse> firstCall = sectionService.replaceSections(publicId, request);
+        List<SectionResponse> secondCall = sectionService.replaceSections(publicId, request);
+
+        assertThat(firstCall).hasSize(1);
+        assertThat(secondCall).hasSize(1);
+        assertThat(firstCall.get(0).title()).isEqualTo(secondCall.get(0).title());
+        assertThat(firstCall.get(0).content()).isEqualTo(secondCall.get(0).content());
+        verify(sectionRepository, times(2)).deleteByQrcode_PublicId(publicId);
     }
 }
