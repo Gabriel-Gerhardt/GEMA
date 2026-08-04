@@ -1,36 +1,33 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import Button from './Button'
-
-afterEach(cleanup)
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { Button } from './Button';
 
 describe('Button', () => {
-  it('renders children and responds to clicks', () => {
-    const onClick = vi.fn()
-    render(<Button onClick={onClick}>Click me</Button>)
-    const button = screen.getByRole('button', { name: 'Click me' })
-    fireEvent.click(button)
-    expect(onClick).toHaveBeenCalledTimes(1)
-  })
+  it('renders its label and responds to presses', async () => {
+    const user = userEvent.setup();
+    const onPress = jest.fn();
+    await render(<Button onPress={onPress}>Criar plano</Button>);
+    await user.press(screen.getByRole('button', { name: 'Criar plano' }));
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
 
-  it('applies the primary variant class by default', () => {
-    render(<Button>Primary</Button>)
-    expect(screen.getByRole('button').className).toContain('bg-primary-green-dark')
-  })
-
-  it('applies the danger variant class when requested', () => {
-    render(<Button variant="danger">Danger</Button>)
-    expect(screen.getByRole('button').className).toContain('bg-semantic-danger')
-  })
-
-  it('does not fire onClick when disabled', () => {
-    const onClick = vi.fn()
-    render(
-      <Button disabled onClick={onClick}>
-        Disabled
+  it('does not fire onPress when disabled', async () => {
+    const user = userEvent.setup();
+    const onPress = jest.fn();
+    await render(
+      <Button onPress={onPress} disabled>
+        Entrar
       </Button>,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Disabled' }))
-    expect(onClick).not.toHaveBeenCalled()
-  })
-})
+    );
+    await user.press(screen.getByRole('button', { name: 'Entrar' }));
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('marks itself disabled via accessibility state', async () => {
+    await render(
+      <Button onPress={() => {}} disabled>
+        Entrar
+      </Button>,
+    );
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeDisabled();
+  });
+});

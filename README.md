@@ -43,12 +43,12 @@ cd backend
 
 cd frontend
 npm install
-npm run dev
+npx expo start --web
 
 ## Access
 
 API: <Swagger or backend URL>  
-Frontend: http://localhost:3000  
+Frontend: Expo Dev Tools opens a QR code and a web preview link (defaults to http://localhost:8081) — scan it with Expo Go on a device, or press `w` to open the web preview.  
 
 ## Contact
 

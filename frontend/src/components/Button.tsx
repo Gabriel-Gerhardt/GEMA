@@ -1,31 +1,35 @@
-import type { ButtonHTMLAttributes } from 'react'
+import { Pressable, Text } from 'react-native';
+import type { ReactNode } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger'
+export type ButtonVariant = 'primary' | 'secondary';
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant
+interface ButtonProps {
+  children: ReactNode;
+  onPress: () => void;
+  variant?: ButtonVariant;
+  disabled?: boolean;
+  className?: string;
 }
 
-const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary:
-    'bg-primary-green-dark text-base-white shadow-sm shadow-leaf-green/20 hover:bg-leaf-green',
-  secondary:
-    'bg-base-white text-text-warm-900 border border-border-warm-200 hover:bg-mint-50',
-  danger: 'bg-semantic-danger text-base-white hover:opacity-90',
-}
+const CONTAINER_VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary: 'bg-green-primary',
+  secondary: 'bg-white border border-border',
+};
 
-export default function Button({
-  variant = 'primary',
-  disabled,
-  className = '',
-  ...props
-}: ButtonProps) {
+const TEXT_VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary: 'text-white',
+  secondary: 'text-text-primary',
+};
+
+export function Button({ children, onPress, variant = 'primary', disabled, className = '' }: ButtonProps) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-base font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANT_CLASSES[variant]} ${className}`}
-      {...props}
-    />
-  )
+    <Pressable
+      role="button"
+      aria-disabled={Boolean(disabled)}
+      onPress={disabled ? undefined : onPress}
+      className={`rounded-button items-center justify-center px-6 py-3.5 ${CONTAINER_VARIANT_CLASSES[variant]} ${disabled ? 'opacity-50' : ''} ${className}`}
+    >
+      <Text className={`font-figtreeSemibold text-[16px] ${TEXT_VARIANT_CLASSES[variant]}`}>{children}</Text>
+    </Pressable>
+  );
 }

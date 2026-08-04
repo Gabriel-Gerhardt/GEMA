@@ -1,43 +1,28 @@
-import { useId, type InputHTMLAttributes } from 'react'
+import { Text, TextInput, View, type TextInputProps } from 'react-native';
+import { colors } from '../theme/tokens';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: string
-  helperText?: string
-  errorText?: string
+interface InputProps extends Pick<TextInputProps, 'value' | 'onChangeText' | 'placeholder' | 'secureTextEntry' | 'autoCapitalize' | 'keyboardType'> {
+  label: string;
+  helperText?: string;
+  errorText?: string;
 }
 
-export default function Input({
-  label,
-  helperText,
-  errorText,
-  id,
-  className = '',
-  ...props
-}: InputProps) {
-  const generatedId = useId()
-  const inputId = id ?? generatedId
-  const hasError = Boolean(errorText)
-
+export function Input({ label, helperText, errorText, ...inputProps }: InputProps) {
+  const hasError = Boolean(errorText);
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={inputId} className="text-sm font-medium text-text-warm-900">
-        {label}
-      </label>
-      <input
-        id={inputId}
-        aria-invalid={hasError}
-        className={`rounded-lg border px-3 py-2 text-base text-text-warm-900 outline-none focus:ring-2 ${
-          hasError
-            ? 'border-semantic-danger focus:ring-semantic-danger'
-            : 'border-border-warm-200 focus:ring-accent-gold'
-        } ${className}`}
-        {...props}
+    <View className="gap-1.5">
+      <Text className="font-figtreeSemibold text-[13.5px] text-text-primary">{label}</Text>
+      <TextInput
+        aria-label={label}
+        placeholderTextColor={colors.text.placeholder}
+        className={`rounded-xl border bg-white px-3.5 py-3 font-figtree text-[15px] text-text-primary ${hasError ? 'border-danger' : 'border-border'}`}
+        {...inputProps}
       />
       {hasError ? (
-        <span className="text-sm text-semantic-danger">{errorText}</span>
+        <Text className="font-figtree text-[13px] text-danger">{errorText}</Text>
       ) : helperText ? (
-        <span className="text-sm text-text-warm-600">{helperText}</span>
+        <Text className="font-figtree text-[13px] text-text-muted">{helperText}</Text>
       ) : null}
-    </div>
-  )
+    </View>
+  );
 }
