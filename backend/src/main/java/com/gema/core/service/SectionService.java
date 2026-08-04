@@ -1,15 +1,19 @@
 package com.gema.core.service;
 
+import com.gema.adapters.dto.request.SectionListSaveRequest;
 import com.gema.adapters.dto.request.SectionSaveRequest;
 import com.gema.adapters.dto.response.SectionCreateResponse;
+import com.gema.adapters.dto.response.SectionResponse;
 import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.SectionEntity;
 import com.gema.external.exception.NotFoundException;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.SectionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class SectionService {
@@ -45,6 +49,52 @@ public class SectionService {
                 saved.getContent(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt()
+        );
+    }
+
+    public List<SectionResponse> getSections(String qrcodePublicId) {
+        QrcodeEntity qrcode = qrcodeRepository.findByPublicId(qrcodePublicId)
+                .orElseThrow(() -> new NotFoundException("QR code not found"));
+
+        return sectionRepository.findByQrcode_PublicIdOrderByIdAsc(qrcode.getPublicId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public List<SectionResponse> replaceSections(String qrcodePublicId, SectionListSaveRequest request) {
+        QrcodeEntity qrcode = qrcodeRepository.findByPublicId(qrcodePublicId)
+                .orElseThrow(() -> new NotFoundException("QR code not found"));
+
+        sectionRepository.deleteByQrcode_PublicId(qrcode.getPublicId());
+
+        LocalDateTime now = LocalDateTime.now();
+        List<SectionEntity> entities = request.sections().stream()
+                .map(section -> new SectionEntity(
+                        null,
+                        qrcode,
+                        section.title(),
+                        section.content(),
+                        now,
+                        now
+                ))
+                .toList();
+
+        return sectionRepository.saveAll(entities)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private SectionResponse toResponse(SectionEntity entity) {
+        return new SectionResponse(
+                entity.getId(),
+                entity.getQrcode().getPublicId(),
+                entity.getTitle(),
+                entity.getContent(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
         );
     }
 }
