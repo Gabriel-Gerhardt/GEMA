@@ -202,6 +202,19 @@ class SectionControllerTest {
     }
 
     @Test
+    void getSections_qrcodeWithNoSections_returns200WithEmptyArray() throws Exception {
+        // Zero sections is not the same as a missing QR code: must be 200 + [],
+        // never a 404, since the acceptance criteria only ties 404 to the QR code itself.
+        String publicId = "abc-123-xyz";
+        when(service.getSections(publicId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
     void getSections_nonexistentQrcode_returns404() throws Exception {
         String publicId = "nonexistent-id";
         when(service.getSections(publicId)).thenThrow(new NotFoundException("QR code not found"));

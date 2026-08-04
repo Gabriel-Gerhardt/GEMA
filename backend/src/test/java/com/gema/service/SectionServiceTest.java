@@ -153,6 +153,24 @@ class SectionServiceTest {
         verify(sectionRepository, never()).findByQrcode_PublicIdOrderByIdAsc(any());
     }
 
+    @Test
+    void getSections_qrcodeExistsWithNoSections_returnsEmptyListNotNotFound() {
+        // Acceptance criteria only mandates 404 when the QR code itself is missing;
+        // a QR code that exists but simply has zero sections must still be a 200 with [].
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId)).thenReturn(List.of());
+
+        List<SectionResponse> response = sectionService.getSections(publicId);
+
+        assertThat(response).isNotNull();
+        assertThat(response).isEmpty();
+    }
+
     // -----------------------------------------------------------------------
     // replaceSections
     // -----------------------------------------------------------------------
@@ -206,6 +224,48 @@ class SectionServiceTest {
 
         verify(sectionRepository).deleteByQrcode_PublicId(publicId);
         assertThat(response).isEmpty();
+    }
+
+    @Test
+    void replaceSections_multipleSections_savesAllWithIndependentIdsInRequestOrder() {
+        // Confirms the request -> entity -> response mapping doesn't collapse or
+        // mix up entries when saveAll assigns distinct ids to multiple rows -
+        // the existing tests only ever exercise a single-section payload.
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(1L);
+        qrcode.setPublicId(publicId);
+
+        SectionListSaveRequest request = new SectionListSaveRequest(List.of(
+                new SectionSaveRequest("First Title", "First Content"),
+                new SectionSaveRequest("Second Title", "Second Content"),
+                new SectionSaveRequest("Third Title", "Third Content")
+        ));
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.saveAll(anyList())).thenAnswer(inv -> {
+            List<SectionEntity> entities = inv.getArgument(0);
+            long id = 300L;
+            for (SectionEntity entity : entities) {
+                entity.setId(id++);
+            }
+            return entities;
+        });
+
+        List<SectionResponse> response = sectionService.replaceSections(publicId, request);
+
+        assertThat(response).hasSize(3);
+        assertThat(response.get(0).id()).isEqualTo(300L);
+        assertThat(response.get(0).title()).isEqualTo("First Title");
+        assertThat(response.get(1).id()).isEqualTo(301L);
+        assertThat(response.get(1).title()).isEqualTo("Second Title");
+        assertThat(response.get(2).id()).isEqualTo(302L);
+        assertThat(response.get(2).title()).isEqualTo("Third Title");
+        response.forEach(r -> assertThat(r.qrcodePublicId()).isEqualTo(publicId));
+
+        ArgumentCaptor<List<SectionEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(sectionRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(3);
     }
 
     @Test

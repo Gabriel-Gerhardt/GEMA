@@ -36,6 +36,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -241,6 +243,87 @@ class SectionCreationAcceptanceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].title").value("Replaced Title"));
+    }
+
+    @Test
+    void getSections_qrcodeExistsWithNoSections_realServiceWiringReturns200WithEmptyArray() throws Exception {
+        // Distinguishes "QR code exists but has zero sections" (200, []) from
+        // "QR code does not exist" (404) through the real controller -> service
+        // wiring, not just the mocked-service unit test.
+        String publicId = "qr-with-no-sections";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(7L);
+        qrcode.setPublicId(publicId);
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void replaceSections_calledTwiceWithSameMultiSectionPayload_realServiceWiringIsIdempotentInContent() throws Exception {
+        // Exercises the real service/@Transactional delete-then-save flow (not the
+        // mocked-service unit test) with more than one section, confirming saveAll
+        // handles multiple entries and that calling PUT twice yields the same
+        // content both times even though ids are not stable across calls.
+        String publicId = "qr-public-id";
+        QrcodeEntity qrcode = new QrcodeEntity();
+        qrcode.setId(9L);
+        qrcode.setPublicId(publicId);
+
+        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+
+        AtomicReference<Long> idSequence = new AtomicReference<>(500L);
+        when(sectionRepository.saveAll(any())).thenAnswer(inv -> {
+            List<SectionEntity> entities = inv.getArgument(0);
+            for (SectionEntity e : entities) {
+                e.setId(idSequence.getAndUpdate(id -> id + 1));
+            }
+            return entities;
+        });
+
+        Map<String, Object> body = Map.of(
+                "sections", List.of(
+                        Map.of("title", "Title One", "content", "Content One"),
+                        Map.of("title", "Title Two", "content", "Content Two")
+                )
+        );
+
+        MvcResult firstResult = mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].title").value("Title One"))
+                .andExpect(jsonPath("$[1].title").value("Title Two"))
+                .andReturn();
+
+        MvcResult secondResult = mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].title").value("Title One"))
+                .andExpect(jsonPath("$[1].title").value("Title Two"))
+                .andReturn();
+
+        // deleteByQrcode_PublicId ran once per PUT: the delete-and-recreate flow
+        // actually executed both times through the real service, not a stub.
+        verify(sectionRepository, times(2)).deleteByQrcode_PublicId(publicId);
+
+        JsonNode firstJson = objectMapper.readTree(firstResult.getResponse().getContentAsString());
+        JsonNode secondJson = objectMapper.readTree(secondResult.getResponse().getContentAsString());
+
+        assertThat(firstJson.get(0).get("content").asText()).isEqualTo("Content One");
+        assertThat(secondJson.get(0).get("content").asText()).isEqualTo("Content One");
+        assertThat(firstJson.get(1).get("content").asText()).isEqualTo("Content Two");
+        assertThat(secondJson.get(1).get("content").asText()).isEqualTo("Content Two");
+
+        // Ids are intentionally NOT stable across PUT calls (delete-and-recreate).
+        assertThat(firstJson.get(0).get("id").asLong()).isNotEqualTo(secondJson.get(0).get("id").asLong());
     }
 
     @Test
