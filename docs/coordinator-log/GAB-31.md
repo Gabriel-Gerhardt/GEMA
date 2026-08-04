@@ -406,3 +406,86 @@ commands themselves rather than trusting claims), a 72-test unit suite,
 DESIGN.md) covering the Landing → Login → Home → Gallery → Plan Detail →
 Emergency Guide flow. This is recorded here, not silently applied, per
 this same log's own standard for every other judgment call in this run.
+
+## Step 5/6: Testing / Final Review — SKIPPED per live user instruction
+
+No fresh-fetch citation applies to a skipped step — recorded here for
+continuity of the step sequence, not as a completed step.
+
+Per `coordinator.md`, Steps 4 (Testing, spawn the Test agent for
+integration/acceptance tests) and 5 (Final Review, spawn Review again
+post-testing) were next, both marked "Never skip" in the protocol's Rules
+section. The live user explicitly instructed mid-run: "you can trowh the
+testing already and skip the last review." This is recorded as a
+deliberate protocol deviation, not silently applied — see the note at the
+end of the "Step 4: First Review (round 2)" entry above for the full
+reasoning (live, explicit, repo-owner instruction; two independent review
+rounds already ran real verification commands themselves; 72-test unit
+suite green; manual visual QA already performed). No integration/
+acceptance test suite exists beyond what the unit tests already cover, and
+no second review round happened after this point — this is a known,
+named gap in this run's coverage, not an oversight.
+
+## Step 7: Commit
+
+Fresh-fetch citation: `coordinator.md` blob SHA `be66e9231595b6e3472a86630815101a23e94fa7`
+(fetched from `Gabriel-Gerhardt/agents` in this turn) — first line `---`,
+last line "Continuing without it is a protocol violation, not a judgment
+call you get to make."
+
+**Output:** 9 commits on branch
+`gabrielgerhardt27/gab-31-new-application-frontendapp`, all authored and
+committed as `Gabriel Gerhardt <gabrielgerhardt27@gmail.com>` (verified via
+`git log --format="%an <%ae> / %cn <%ce>"` after every commit — no Claude
+identity, no Co-authored-by trailer anywhere), branch name carries no
+"claude"/"anthropic" reference (sourced from Linear's `gitBranchName` field
+per this issue's earlier setup), none committed to `main`/`master`:
+
+```
+69aa092 docs(GAB-31): add implementation plan and Broto design system doc
+8b5ef02 chore(GAB-31): remove legacy Vite web frontend
+91fc50a chore(GAB-31): scaffold Expo React Native project
+cdd702a feat(GAB-31): add Broto design tokens and shared RN components
+da2ea3d feat(GAB-31): add mock plan/auth state management
+cd34560 feat(GAB-31): add navigation shell
+64a3ebc feat(GAB-31): add all 13 app screens
+3f82c53 docs(GAB-31): update frontend setup instructions for Expo
+10c0c1f docs(GAB-31): add coordinator log for this issue's pipeline run
+```
+
+**Granularity note:** grouped by feature area (docs/plan, cleanup,
+scaffold, tokens+components, state, navigation, screens, docs fixes) rather
+than by literal chronological edit order. All implementation work happened
+in one working tree before any commit existed, so a true "before review
+fixes" vs. "after review fixes" split isn't reconstructable — the fix
+content (Emergency Guide reachability, the greeting, the opacity/comment
+polish) is folded into whichever feature-area commit already owns those
+files (navigation, screens, App.tsx). This is a deliberate scoping choice,
+recorded per this log's own standard, not a silent simplification.
+
+**Verification (fresh, this step):** `npm test` → 25 suites / 72 tests
+passing on the fully committed tree; `npx tsc --noEmit` → 0 errors; `git
+status --short` → clean working tree.
+
+**Commit agent's own checklist (`commit.md`), verified line by line:**
+- [x] Branch named after the issue id + slug (`gabrielgerhardt27/gab-31-...`,
+  sourced from Linear, not invented) — no AI-agent reference in the name.
+- [x] Granular commits, smallest reasonable meaningful unit given the
+  constraint above, not one giant commit.
+- [x] Each commit message concise, imperative mood, references GAB-31,
+  under the "smallest meaningful unit" guidance's spirit.
+- [x] No Claude/Anthropic co-author anywhere — verified via `git log`.
+- [x] Author AND committer are the user on every commit — verified via
+  `git log --format`.
+- [x] Never committed on `main`/`master` — the branch was created off
+  `origin/main` at session start and never switched.
+- [x] Did not push or open a pull request — both remain gated, pending
+  explicit authorization from the user for this specific action (asked
+  separately, not assumed from the earlier testing/review skip
+  instruction, which was about QA steps, not publication).
+
+This step raises one item back to the user, not as an "open question" in
+the coordinator-protocol sense (nothing here blocks the commit itself,
+which is done), but as the next gated action per `commit.md` rule 8 and
+`coordinator.md`'s Step 6: whether to push this branch and open a pull
+request now.
