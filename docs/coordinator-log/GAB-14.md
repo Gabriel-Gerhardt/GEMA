@@ -345,3 +345,107 @@ subagent (as instructed).
 
 **Result: DONE.** TESTS: pass, confirmed independently. Proceeding to Step 5
 (Final Review).
+
+## Step 5: Final Review
+
+**Fresh-fetch citation:** `coordinator.md` unchanged, blob SHA
+`94007908e7269d6d98fc1ab08b427f128cebbdd8`. `review.md` freshly re-fetched,
+blob SHA `2637ecc6f5d1bb4d83c1136dddb0ebe2bcede4b2` (unchanged).
+
+**Spawn:** dispatched a fresh `general-purpose` subagent as the review
+persona (no memory of earlier passes), with the full role text, the
+`verification-before-completion` skill, and — per `coordinator.md`'s
+mandatory context-brief requirement for the final review specifically — the
+first review's exact findings (issue #1 transactional gap, issue #2
+duplicate-DTO note) and exactly how each was resolved, plus what Step 4
+added since. Instructed to verify everything itself, not trust the brief.
+
+**Output: Approved: yes.**
+- Independently re-verified issue #1's closure: confirmed `@Transactional`
+  on `replaceSections` at the correct line, confirmed
+  `spring-boot-starter-data-jpa` autoconfigures a real transaction manager,
+  confirmed no self-invocation undermines the proxy. Honestly noted a
+  caveat: the `@WebMvcTest`-based acceptance tests don't wire a live
+  transaction manager, so they validate logic/idempotency but not actual
+  rollback-on-failure — that guarantee rests on the annotation +
+  autoconfiguration, verified statically, which is accepted as reasonable
+  given no live Postgres exists in this sandbox.
+- Ran `./gradlew test` fresh: 110 tests, 1 failure
+  (`GemaApplicationTests.contextLoads()`, same pre-existing Postgres gap,
+  confirmed via `build/test-results` XML as the only failing file). All
+  3 Section suites fully green (11/11, 16/16, 7/7).
+- Confirmed via `git diff 57454f1..2eb3c61 --stat` that Step 4 touched only
+  test files (156 insertions, 0 production lines) — no production code
+  changed since the prior review pass.
+- Confirmed the new tests exercise real code paths, not tautologies (e.g.
+  the multi-section test would catch an index/zip mapping bug; the
+  double-PUT test verifies `deleteByQrcode_PublicId` was actually invoked
+  twice via `verify(..., times(2))`, not just that the response looked
+  right).
+- Issue #2 (DTO duplication) carried forward as a low/non-blocking note,
+  not reopened — consistent with it being explicitly accepted twice already.
+- Two new non-blocking observations (derived delete not bulk/`@Modifying`;
+  `IDENTITY` generation disables JDBC batching on `saveAll`) — both
+  pre-existing patterns from `createSection`, not introduced by this
+  change, explicitly not required to fix for GAB-14's acceptance criteria.
+- Next step: "Proceed to commit. No further changes required."
+
+**Result: APPROVED (final review).** TESTS: pass (Step 4) + APPROVED: yes
+(Step 5) — both gates for Step 6 are met. Proceeding to Commit.
+
+## Step 6: Commit
+
+**Fresh-fetch citation:** `coordinator.md` unchanged, blob SHA
+`94007908e7269d6d98fc1ab08b427f128cebbdd8`. `commit.md` freshly re-fetched,
+blob SHA `a415715e039657fce5b132074481de98fb28aa84` (unchanged).
+
+**Gate check:** APPROVED: yes (Step 5) and TESTS: pass (Step 4) both present
+— proceeding, per `coordinator.md` Step 6.
+
+**Branch:** `gabrielgerhardt27/gab-14-get-and-put-routes-for-sections` —
+copied verbatim from this issue's Linear `gitBranchName` field at session
+start, not invented; contains no "claude"/"anthropic"/AI-agent reference.
+Never committed to main/master.
+
+**Commit history for this issue (already made incrementally through the
+pipeline, one meaningful unit per commit, per `commit.md`'s "smallest
+meaningful unit of work, prefer more commits over fewer"):**
+```
+6bb2139 GAB-14: add implementation plan for sections GET/PUT routes
+a1825df GAB-14: record user confirmation of plan decisions
+57454f1 GAB-14: implement GET/PUT sections routes, address review feedback
+2eb3c61 GAB-14: add zero-sections and multi-section/idempotency test coverage
+```
+Verified via `git log --format='%an <%ae> | %cn <%ce>'` on all 4 commits:
+author and committer are both `Gabriel Gerhardt <gabrielgerhardt27@gmail.com>`
+on every one — never Claude, never Anthropic. No `Co-authored-by` trailer on
+any commit. `git status` on the working tree is clean — nothing left
+uncommitted.
+
+**Working tree already committed, nothing new to commit.** Per `commit.md`
+item 1 ("read the diff... to understand what has been modified") and the
+task's own instruction not to end the session until changes are committed:
+verified there is no uncommitted feature work outstanding — every change
+produced by Steps 1-5 is already on this branch under the correct identity,
+so this step's action is verification, not a new commit.
+
+**Push:** the branch is already pushed and up to date with `origin/gabrielgerhardt27/gab-14-get-and-put-routes-for-sections`
+(pushed incrementally after each step per this session's earlier actions).
+No pull request opened — not authorized/requested for this run.
+
+**Self-check against `commit.md`:**
+- [x] Branch named after the issue id, copied verbatim from Linear, no AI
+      reference.
+- [x] Commits are granular by meaningful unit (plan → decisions → impl+fix →
+      test coverage), not one giant commit.
+- [x] Commit messages carry the `GAB-14` issue id, imperative mood, <72 chars
+      subject line.
+- [x] Author and committer are the user on every commit — verified via
+      `git log`, not assumed.
+- [x] No `Co-authored-by: Claude` or similar trailer on any commit.
+- [x] Never committed to main/master — branch confirmed throughout.
+- [x] No push/PR performed beyond what's already been pushed to the feature
+      branch; no PR opened (not requested).
+
+**Result: DONE.** All gates satisfied, all commits verified. GAB-14's
+implementation is complete and ready for the issue to move to In Review.
