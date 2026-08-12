@@ -19,7 +19,7 @@ import com.google.zxing.common.HybridBinarizer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -64,7 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(QrcodeController.class)
 @Import({BeanConfig.class, GlobalExceptionHandler.class, QrcodeService.class, QrcodeImageService.class})
-@TestPropertySource(properties = "app.base-url=http://localhost:8080")
+@TestPropertySource(properties = "app.public-base-url=http://localhost:8081")
 class QrcodeFlowAcceptanceTest {
 
     @Autowired
@@ -73,10 +73,10 @@ class QrcodeFlowAcceptanceTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private QrcodeRepository qrcodeRepository;
 
-    @MockBean
+    @MockitoBean
     private UserRepository userRepository;
 
     @Test
@@ -178,14 +178,19 @@ class QrcodeFlowAcceptanceTest {
 
         // -- Assert: the PNG really is a scannable barcode for this qrcode's resolve URL --
         String decoded = decode(png);
-        assertThat(decoded).isEqualTo("http://localhost:8080/q/" + publicId);
+        // The encoded target is the FRONTEND guide page. It used to be
+        // "{backend}/q/{id}", a route that does not exist — the JSON endpoint is
+        // "/api/q/{id}" — so every scanned code landed on a 404.
+        assertThat(decoded).isEqualTo("http://localhost:8081/q/" + publicId);
     }
 
     @Test
-    void create_blankContent_realSanitizerRejects_repositoryNeverTouched() throws Exception {
+    void create_contentWithControlChar_realSanitizerRejects_repositoryNeverTouched() throws Exception {
+        // Blank content is valid now (the field is optional), so the sanitizer's
+        // remaining job — rejecting control characters — is what this covers.
         Map<String, Object> createBody = Map.of(
                 "title", "My QR Code",
-                "content", "   ",
+                "content", "line1\rline2",
                 "userId", 1L
         );
 

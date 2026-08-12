@@ -11,7 +11,7 @@ import com.gema.external.rest.SectionController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,7 +40,7 @@ class SectionControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private SectionService service;
 
     // -----------------------------------------------------------------------
@@ -57,6 +57,7 @@ class SectionControllerTest {
                 publicId,
                 "Section Title",
                 "Section content",
+                0,
                 now,
                 now
         );
@@ -67,7 +68,7 @@ class SectionControllerTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
@@ -85,7 +86,7 @@ class SectionControllerTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -98,7 +99,7 @@ class SectionControllerTest {
                 "content", ""
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -113,7 +114,7 @@ class SectionControllerTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -128,7 +129,7 @@ class SectionControllerTest {
                 "content", "a".repeat(20001)
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -147,7 +148,7 @@ class SectionControllerTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound());
@@ -160,7 +161,7 @@ class SectionControllerTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -172,7 +173,7 @@ class SectionControllerTest {
     void createSection_missingTitleField_returns400() throws Exception {
         String body = "{\"content\":\"Section content\"}";
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
@@ -187,11 +188,11 @@ class SectionControllerTest {
         String publicId = "abc-123-xyz";
         LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
 
-        SectionResponse first = new SectionResponse(10L, publicId, "First", "Content A", now, now);
-        SectionResponse second = new SectionResponse(11L, publicId, "Second", "Content B", now, now);
+        SectionResponse first = new SectionResponse(10L, publicId, "First", "Content A", 0, now, now);
+        SectionResponse second = new SectionResponse(11L, publicId, "Second", "Content B", 0, now, now);
         when(service.getSections(publicId)).thenReturn(List.of(first, second));
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(2)))
@@ -208,7 +209,7 @@ class SectionControllerTest {
         String publicId = "abc-123-xyz";
         when(service.getSections(publicId)).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(0)));
@@ -219,7 +220,7 @@ class SectionControllerTest {
         String publicId = "nonexistent-id";
         when(service.getSections(publicId)).thenThrow(new NotFoundException("QR code not found"));
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isNotFound());
     }
 
@@ -232,14 +233,14 @@ class SectionControllerTest {
         String publicId = "abc-123-xyz";
         LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
 
-        SectionResponse response = new SectionResponse(15L, publicId, "New Title", "New Content", now, now);
+        SectionResponse response = new SectionResponse(15L, publicId, "New Title", "New Content", 0, now, now);
         when(service.replaceSections(eq(publicId), any())).thenReturn(List.of(response));
 
         Map<String, Object> body = Map.of(
                 "sections", List.of(Map.of("title", "New Title", "content", "New Content"))
         );
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -256,7 +257,7 @@ class SectionControllerTest {
 
         Map<String, Object> body = Map.of("sections", List.of());
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -273,7 +274,7 @@ class SectionControllerTest {
                 "sections", List.of(Map.of("title", "Title", "content", "Content"))
         );
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound());
@@ -285,7 +286,7 @@ class SectionControllerTest {
                 "sections", List.of(Map.of("title", "", "content", "Content"))
         );
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -297,11 +298,51 @@ class SectionControllerTest {
     void replaceSections_missingSectionsField_returns400() throws Exception {
         String body = "{}";
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", "abc-123-xyz")
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
+    }
+    // -----------------------------------------------------------------------
+    // GET /api/q/{publicId}/sections  (public, read-only)
+    // -----------------------------------------------------------------------
+
+    @Test
+    void getPublicSections_activePlan_returns200() throws Exception {
+        String publicId = "abc-123-xyz";
+        LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
+
+        when(service.getPublicSections(publicId))
+                .thenReturn(List.of(new SectionResponse(10L, publicId, "First", "Content A", 0, now, now)));
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("First"));
+    }
+
+    @Test
+    void getPublicSections_deactivatedPlan_returns404() throws Exception {
+        // A deactivated plan must stop being served publicly: the Ativo/Inativo
+        // toggle exists so an owner can pull their emergency information out of
+        // circulation, which only means something if the content disappears.
+        String publicId = "inactive-id";
+        when(service.getPublicSections(publicId)).thenThrow(new NotFoundException("QR code not found"));
+
+        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publicPrefix_doesNotExposeWrites() throws Exception {
+        // Section writes live under /api/qrcodes/** so the JWT filter can gate
+        // the owner surface with a single matcher. The public prefix must not
+        // carry a write route at all.
+        mockMvc.perform(put("/api/q/{publicId}/sections", "abc-123-xyz")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sections\":[]}"))
+                .andExpect(status().isMethodNotAllowed());
     }
 }

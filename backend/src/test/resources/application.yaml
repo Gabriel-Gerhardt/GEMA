@@ -1,0 +1,35 @@
+# Test-only configuration.
+#
+# `./gradlew build` used to fail on a clean clone: GemaApplicationTests is a
+# @SpringBootTest with no test configuration, so it tried to reach a real
+# Postgres on localhost:5432 and failed with a ConnectException unless the
+# developer had already run `docker compose up`. The context test only needs to
+# prove the beans wire together, so it runs against an in-memory H2 in
+# PostgreSQL compatibility mode with the schema generated from the entities.
+#
+# Liquibase is disabled here on purpose: the migrations are Postgres-specific
+# SQL (BIGSERIAL, window functions). They are exercised against real Postgres,
+# not H2 — running them here would only test H2's dialect emulation.
+spring:
+  datasource:
+    url: jdbc:h2:mem:gema;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  liquibase:
+    enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+app:
+  base-url: http://localhost:8080
+  public-base-url: http://localhost:8081
+  cors:
+    allowed-origins: http://localhost:8081
+  jwt:
+    secret: test-only-secret-key-that-is-long-enough-for-hmac-sha-512-signing-abcdefghijklmnop
+    expiration-ms: 3600000

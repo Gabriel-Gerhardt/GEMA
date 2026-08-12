@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
 import { usePlans } from '../state/PlansContext';
 import type { HomeStackParamList } from '../navigation/types';
@@ -15,7 +16,20 @@ export function PlanCreatedScreen() {
   const { getPlan } = usePlans();
   const plan = getPlan(route.params.planId);
 
-  if (!plan) return null;
+  if (!plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <EmptyState
+          className="flex-1"
+          title="Plano não encontrado"
+          message="Não conseguimos carregar o plano recém-criado."
+          actionLabel="Voltar"
+          onAction={() => navigation.goBack()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   const link = `gema.app/q/${plan.publicId}`;
 
   return (
@@ -32,7 +46,7 @@ export function PlanCreatedScreen() {
           <View className="mt-4.5">
             <QrPlaceholder size={150} />
           </View>
-          <View className="mt-4 w-full rounded-xl bg-mint-surface px-3 py-2.5">
+          <View className="mt-4 w-full rounded-input bg-mint-surface px-3 py-2.5">
             <Text
               role="link"
               aria-label={link}

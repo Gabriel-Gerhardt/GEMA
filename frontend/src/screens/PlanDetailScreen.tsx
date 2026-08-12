@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
 import { SectionReadItem } from '../components/SectionReadItem';
 import { StatusDot } from '../components/StatusDot';
@@ -15,7 +16,21 @@ export function PlanDetailScreen() {
   const { getPlan } = usePlans();
   const plan = getPlan(route.params.planId);
 
-  if (!plan) return null;
+  // Rendering `null` here left a blank screen whenever the plan had just been
+  // deleted (or the id was stale) rather than telling the user anything.
+  if (!plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <EmptyState
+          className="flex-1"
+          title="Plano não encontrado"
+          message="Este plano foi excluído ou não existe mais."
+          actionLabel="Voltar à galeria"
+          onAction={() => navigation.navigate('GalleryScreen')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>

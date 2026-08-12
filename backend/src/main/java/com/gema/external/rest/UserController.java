@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,10 +27,15 @@ public class UserController {
         this.service = service;
     }
 
+    @Operation(summary = "Register an account")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Account created"),
+            @ApiResponse(responseCode = "400", description = "Invalid request"),
+            @ApiResponse(responseCode = "409", description = "Username already taken")
+    })
     @PostMapping
-    public ResponseEntity<AuthResponse> createUser(@RequestBody @Valid UserSaveRequest request){
-
-        AuthResponse response = service.createUser(request.username(), request.password(), request.role());
+    public ResponseEntity<AuthResponse> createUser(@RequestBody @Valid UserSaveRequest request) {
+        AuthResponse response = service.createUser(request.username(), request.password(), request.name());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -42,5 +48,16 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserDetailsResponse> getUser(@PathVariable Long id) {
         return ResponseEntity.ok(service.getUserDetails(id));
+    }
+
+    @Operation(summary = "Delete an account along with its plans")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Account deleted"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        service.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }

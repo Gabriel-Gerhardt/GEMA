@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { SectionEditorItem } from '../components/SectionEditorItem';
 import { usePlans } from '../state/PlansContext';
 import { colors } from '../theme/tokens';
@@ -31,7 +32,19 @@ export function EditPlanScreen() {
     (plan?.sections ?? []).map((s) => ({ key: s.id, id: s.id, title: s.title, content: s.content })),
   );
 
-  if (!plan) return null;
+  if (!plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <EmptyState
+          className="flex-1"
+          title="Plano não encontrado"
+          message="Este plano foi excluído ou não existe mais."
+          actionLabel="Voltar à galeria"
+          onAction={() => navigation.navigate('GalleryScreen')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   function updateSection(key: string, patch: Partial<Pick<DraftSection, 'title' | 'content'>>) {
     setSections((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
@@ -101,7 +114,7 @@ export function EditPlanScreen() {
             value={title}
             onChangeText={setTitle}
             placeholderTextColor={colors.text.placeholder}
-            className="rounded-xl border border-border bg-white px-3.5 py-3 font-figtreeSemibold text-[15px] text-text-primary"
+            className="rounded-input border border-border bg-white px-3.5 py-3 font-figtreeSemibold text-[15px] text-text-primary"
           />
         </View>
         <Text className="mt-1.5 font-figtree text-[12px] text-text-muted">

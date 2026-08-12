@@ -52,22 +52,65 @@ class UserServiceTest {
         userService = new UserService(userRepository, qrcodeRepository, passwordEncoder, jwtService);
     }
 
+    /** Mirrors JPA's contract: save() returns the managed instance, id populated. */
+    private void stubSaveAssigningId(long id) {
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> {
+            UserEntity entity = invocation.getArgument(0);
+            entity.setId(id);
+            return entity;
+        });
+    }
+
     @Test
     void createUser_happyPath_savesEntityAndReturnsToken() {
         // Arrange
         when(userRepository.existsByUsername("alice")).thenReturn(false);
         when(passwordEncoder.encode("password1")).thenReturn("hashed-password");
         when(jwtService.generateToken("alice", Role.USER)).thenReturn("jwt-token");
+        stubSaveAssigningId(7L);
 
         // Act
-        AuthResponse response = userService.createUser("alice", "password1", Role.USER);
+        AuthResponse response = userService.createUser("alice", "password1", "Alice Souza");
 
         // Assert
         assertThat(response.token()).isEqualTo("jwt-token");
         verify(userRepository).save(argThat(entity ->
                 entity.getUsername().equals("alice")
                         && entity.getPasswordHash().equals("hashed-password")
+                        && entity.getName().equals("Alice Souza")
                         && entity.getRole() == Role.USER));
+    }
+
+    @Test
+    void createUser_alwaysRegistersAsUserRole_neverAdmin() {
+        // Role used to be a caller-supplied request field, which meant a client
+        // could register itself as an ADMIN. Registration must now always mint a
+        // USER, with no input capable of changing that.
+        when(userRepository.existsByUsername("attacker")).thenReturn(false);
+        when(passwordEncoder.encode("password1")).thenReturn("hashed-password");
+        when(jwtService.generateToken("attacker", Role.USER)).thenReturn("jwt-token");
+        stubSaveAssigningId(8L);
+
+        userService.createUser("attacker", "password1", "ADMIN");
+
+        verify(userRepository).save(argThat(entity -> entity.getRole() == Role.USER));
+        verify(jwtService).generateToken("attacker", Role.USER);
+    }
+
+    @Test
+    void createUser_returnsIdentityTheClientNeedsForSubsequentCalls() {
+        // The client has no other way to learn its own id, and POST /api/qrcodes
+        // requires it.
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password1")).thenReturn("hashed-password");
+        when(jwtService.generateToken("alice", Role.USER)).thenReturn("jwt-token");
+        stubSaveAssigningId(42L);
+
+        AuthResponse response = userService.createUser("alice", "password1", "Alice Souza");
+
+        assertThat(response.userId()).isEqualTo(42L);
+        assertThat(response.username()).isEqualTo("alice");
+        assertThat(response.name()).isEqualTo("Alice Souza");
     }
 
     @Test
@@ -76,7 +119,7 @@ class UserServiceTest {
         when(userRepository.existsByUsername("alice")).thenReturn(true);
 
         // Act & Assert
-        assertThatThrownBy(() -> userService.createUser("alice", "password1", Role.USER))
+        assertThatThrownBy(() -> userService.createUser("alice", "password1", "Alice Souza"))
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("Username already exists");
 
@@ -178,5 +221,26 @@ class UserServiceTest {
                 .hasMessage("User not found");
 
         verifyNoInteractions(qrcodeRepository);
+    }
+
+    @Test
+    void deleteUser_existingUser_deletesIt() {
+        UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        userService.deleteUser(1L);
+
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void deleteUser_unknownUser_throwsNotFoundAndDeletesNothing() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.deleteUser(99L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("User not found");
+
+        verify(userRepository, never()).delete(any());
     }
 }

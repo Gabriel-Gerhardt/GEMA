@@ -3,9 +3,9 @@ spring:
     name: gema
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/gema
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gema}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   liquibase:
     change-log: classpath:db/changelog/db.changelog.yml
@@ -13,9 +13,28 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    # Associations are lazy and every response is built inside the service
+    # layer, so there is nothing left to initialize at render time. Leaving
+    # open-in-view on would keep a connection held for the whole request and
+    # hide accidental lazy loads behind the view.
+    open-in-view: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
 
 app:
+  # Base URL of this API.
   base-url: ${APP_BASE_URL:http://localhost:8080}
+
+  # Base URL of the FRONTEND. This is what a generated QR code encodes: a
+  # scanned code must land a person on the rendered guide page, not on a JSON
+  # endpoint. Defaults to the Expo web dev server.
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8081}
+
+  cors:
+    # Expo web dev server (8081) and the legacy Expo web port (19006).
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:8081,http://localhost:19006}
 
   jwt:
     # Dev-only default, mirrors the datasource credentials above. Override

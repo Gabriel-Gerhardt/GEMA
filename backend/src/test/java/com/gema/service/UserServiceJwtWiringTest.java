@@ -26,6 +26,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -80,6 +82,16 @@ class UserServiceJwtWiringTest {
         userService = new UserService(userRepository, qrcodeRepository, passwordEncoder, jwtService);
     }
 
+    /** UserService reads the id back off the saved entity; mirror JPA's contract. */
+    @BeforeEach
+    void stubSave() {
+        lenient().when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> {
+            UserEntity entity = invocation.getArgument(0);
+            entity.setId(1L);
+            return entity;
+        });
+    }
+
     private Claims decode(String token) {
         return Jwts.parser().verifyWith(KEY).build().parseSignedClaims(token).getPayload();
     }
@@ -88,25 +100,28 @@ class UserServiceJwtWiringTest {
     void createUser_tokenDecodesToTheRegisteredUsername() {
         when(userRepository.existsByUsername("alice")).thenReturn(false);
 
-        AuthResponse response = userService.createUser("alice", "password1", Role.USER);
+        AuthResponse response = userService.createUser("alice", "password1", "Alice");
 
         assertThat(decode(response.token()).getSubject()).isEqualTo("alice");
     }
 
     @Test
-    void createUser_adminRegistrant_tokenRoleClaimIsAdmin_notAlwaysUser() {
+    void createUser_cannotMintAnAdminToken_regardlessOfInput() {
+        // Registration used to take the role from the request body, so a client
+        // could hand itself a token carrying "role":"ADMIN". There is no longer
+        // any registration input that produces one.
         when(userRepository.existsByUsername("admin1")).thenReturn(false);
 
-        AuthResponse response = userService.createUser("admin1", "password1", Role.ADMIN);
+        AuthResponse response = userService.createUser("admin1", "password1", "ADMIN");
 
-        assertThat(decode(response.token()).get("role", String.class)).isEqualTo("ADMIN");
+        assertThat(decode(response.token()).get("role", String.class)).isEqualTo("USER");
     }
 
     @Test
     void createUser_userRegistrant_tokenRoleClaimIsUser() {
         when(userRepository.existsByUsername("bob")).thenReturn(false);
 
-        AuthResponse response = userService.createUser("bob", "password1", Role.USER);
+        AuthResponse response = userService.createUser("bob", "password1", "Bob");
 
         assertThat(decode(response.token()).get("role", String.class)).isEqualTo("USER");
     }
@@ -116,7 +131,7 @@ class UserServiceJwtWiringTest {
         when(userRepository.existsByUsername("alice")).thenReturn(false);
 
         long before = System.currentTimeMillis();
-        AuthResponse response = userService.createUser("alice", "password1", Role.USER);
+        AuthResponse response = userService.createUser("alice", "password1", "Alice");
         long after = System.currentTimeMillis();
 
         long expiresAt = decode(response.token()).getExpiration().getTime();

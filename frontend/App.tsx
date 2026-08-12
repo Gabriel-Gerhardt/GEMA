@@ -1,4 +1,5 @@
 import './global.css';
+import { useMemo } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
@@ -12,23 +13,74 @@ import {
   Figtree_700Bold,
   Figtree_800ExtraBold,
 } from '@expo-google-fonts/figtree';
-import { AuthProvider } from './src/state/AuthContext';
+import { AuthProvider, useAuth } from './src/state/AuthContext';
 import { PlansProvider } from './src/state/PlansContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { colors } from './src/theme/tokens';
-import type { PublicStackParamList } from './src/navigation/types';
 
-/** Deep-link config for the unauthenticated scan flow ("someone else's
- * phone opens gema://q/abc123" — the realistic case, per DESIGN.md's flow
- * diagram: "Anyone with the link — no login"). Scoped to PublicStack's
- * shape only: when signed in, RootNavigator mounts the tab shell instead,
- * where a raw external link won't auto-navigate — the signed-in owner's
- * preview of their own plan is covered separately by the in-app tappable
- * links on Plan Detail/Plan Created, not by this config. */
-const linking: LinkingOptions<PublicStackParamList> = {
-  prefixes: [Linking.createURL('/'), 'gema://'],
-  config: { screens: { EmergencyGuide: 'q/:publicId' } },
+const PREFIXES = [Linking.createURL('/'), 'gema://'];
+
+/** The two shells are different navigators, so each config is typed against the
+ * container's root param list rather than one specific stack. */
+type AppLinkingOptions = LinkingOptions<ReactNavigation.RootParamList>;
+
+/** Shape mounted when signed out: PublicStack hosts EmergencyGuide directly. */
+const PUBLIC_LINKING: AppLinkingOptions = {
+  prefixes: PREFIXES,
+  config: {
+    screens: {
+      Landing: '',
+      Login: 'login',
+      CreateAccount: 'create-account',
+      Onboarding: 'welcome',
+      EmergencyGuide: 'q/:publicId',
+      NotFound: '*',
+    },
+  },
 };
+
+/**
+ * Shape mounted when signed in: the tab shell, where EmergencyGuide lives
+ * inside the Galeria tab's stack.
+ *
+ * Without this the deep link only resolved while signed out — opening
+ * `gema://q/abc123` as a logged-in user silently did nothing, because the
+ * config described a navigator that wasn't mounted.
+ */
+const AUTHENTICATED_LINKING: AppLinkingOptions = {
+  prefixes: PREFIXES,
+  config: {
+    screens: {
+      Galeria: {
+        screens: {
+          GalleryScreen: 'planos',
+          PlanDetail: 'planos/:planId',
+          EditPlan: 'planos/:planId/edit',
+          EmergencyGuide: 'q/:publicId',
+        },
+      },
+      Início: { screens: { HomeScreen: 'home' } },
+      Perfil: { screens: { ProfileScreen: 'profile' } },
+    },
+  },
+};
+
+/**
+ * Sits inside AuthProvider so it can pick the linking config matching the
+ * navigator RootNavigator is about to mount. The two shells have different
+ * shapes, and a single merged config would declare the same path twice.
+ */
+function NavigationRoot() {
+  const { isSignedIn } = useAuth();
+  const linking = useMemo(() => (isSignedIn ? AUTHENTICATED_LINKING : PUBLIC_LINKING), [isSignedIn]);
+
+  return (
+    <NavigationContainer linking={linking}>
+      <RootNavigator />
+      <StatusBar style="dark" />
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -51,10 +103,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <PlansProvider>
-          <NavigationContainer linking={linking}>
-            <RootNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
+          <NavigationRoot />
         </PlansProvider>
       </AuthProvider>
     </SafeAreaProvider>
