@@ -73,6 +73,35 @@ class QrcodeImageServiceTest {
         return new MultiFormatReader().decode(bitmap);
     }
     @Test
+    void generatePng_manyDistinctPlanUrls_allRoundTrip() throws Exception {
+        // Regression guard for the flakiness that broke CI. Whether a symbol
+        // defeats a reader's detector depends on its module pattern, so it
+        // varies with the encoded content — and because encoding is
+        // deterministic, an unlucky plan id used to mean a permanently
+        // unreadable code, not an intermittent one. A single fixed encoder
+        // setting measured about 1 unreadable code in 1,250; the service now
+        // verifies its own output and re-renders with different settings until
+        // it round-trips, which measured 0 failures in 20,000 URLs.
+        //
+        // A sample this size cannot prove that rate, but it does catch the
+        // verification being removed or wired up wrong.
+        String alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+        SecureRandom random = new SecureRandom();
+
+        for (int i = 0; i < 100; i++) {
+            StringBuilder id = new StringBuilder();
+            for (int j = 0; j < 10; j++) {
+                id.append(alphabet.charAt(random.nextInt(alphabet.length())));
+            }
+            String url = "http://localhost:8081/q/" + id;
+
+            assertThat(decode(imageService.generatePng(url)))
+                    .as("QR code for %s must decode back to it", url)
+                    .isEqualTo(url);
+        }
+    }
+
+    @Test
     void generatePng_accentedContent_survivesTheRoundTrip() throws Exception {
         // UTF-8 is declared only when the content needs it, because doing so
         // unconditionally added an ECI segment that measured six times worse on
