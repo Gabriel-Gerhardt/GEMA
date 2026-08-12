@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/migrations/003-normalize-role-and-add-name.sql
   - include:
       file: db/changelog/migrations/004-add-section-sort-order.sql
+  - include:
+      file: db/changelog/migrations/005-add-plan-subject-and-contact.sql
