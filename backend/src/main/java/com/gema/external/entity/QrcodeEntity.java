@@ -38,6 +38,22 @@ public class QrcodeEntity {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    /**
+     * The person the plan is about, which is not necessarily the account
+     * holder: a caregiver may hold plans for more than one person. Sources the
+     * public guide's greeting headline. Optional.
+     */
+    @Column(name = "owner_name")
+    private String ownerName;
+
+    /** Structured emergency contact, so the guide's call action does not depend
+     * on parsing a phone number out of free-text prose. Optional. */
+    @Column(name = "emergency_contact_name")
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone")
+    private String emergencyContactPhone;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
