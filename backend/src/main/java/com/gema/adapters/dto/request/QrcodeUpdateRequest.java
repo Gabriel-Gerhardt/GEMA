@@ -15,6 +15,15 @@ public record QrcodeUpdateRequest(
         Boolean isActive,
 
         @Size(max = 20000)
-        String content
+        String content,
+
+        @Size(max = 255)
+        String ownerName,
+
+        @Size(max = 255)
+        String emergencyContactName,
+
+        @Size(max = 40)
+        String emergencyContactPhone
 ) {
 }

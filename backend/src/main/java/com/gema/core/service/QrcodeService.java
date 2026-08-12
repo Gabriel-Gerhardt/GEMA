@@ -2,18 +2,26 @@ package com.gema.core.service;
 
 import com.gema.adapters.dto.request.QrcodeSaveRequest;
 import com.gema.adapters.dto.request.QrcodeUpdateRequest;
+import com.gema.adapters.dto.request.SectionSaveRequest;
 import com.gema.adapters.dto.response.QrcodeResponse;
+import com.gema.adapters.dto.response.UserQrcodeResponse;
 import com.gema.external.entity.QrcodeEntity;
+import com.gema.external.entity.SectionEntity;
 import com.gema.external.entity.UserEntity;
-import com.gema.external.exception.BadRequestException;
 import com.gema.external.exception.NotFoundException;
+import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.repository.QrcodeRepository;
+import com.gema.external.repository.SectionRepository;
 import com.gema.external.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class QrcodeService {
@@ -30,45 +38,50 @@ public class QrcodeService {
     private static final int MAX_PUBLIC_ID_ATTEMPTS = 5;
 
     private final QrcodeRepository qrcodeRepository;
+    private final SectionRepository sectionRepository;
     private final UserRepository userRepository;
     private final SecureRandom random = new SecureRandom();
 
-    public QrcodeService(QrcodeRepository qrcodeRepository, UserRepository userRepository) {
+    public QrcodeService(QrcodeRepository qrcodeRepository, SectionRepository sectionRepository,
+                          UserRepository userRepository) {
         this.qrcodeRepository = qrcodeRepository;
+        this.sectionRepository = sectionRepository;
         this.userRepository = userRepository;
     }
 
+    /**
+     * Creates a plan owned by {@code username}, together with any sections
+     * supplied, in a single transaction.
+     */
     @Transactional
-    public String createQrcode(QrcodeSaveRequest request) {
+    public QrcodeResponse createQrcode(QrcodeSaveRequest request, String username) {
         QrcodeContentSanitizer.validate(request.content());
 
-        UserEntity user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new BadRequestException("User not found"));
-
-        String publicId = generateUniquePublicId();
+        UserEntity user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
 
         LocalDateTime now = LocalDateTime.now();
-        QrcodeEntity entity = new QrcodeEntity(
-                null,
-                publicId,
-                request.title(),
-                true,
-                request.content(),
-                user,
-                now,
-                now
-        );
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setPublicId(generateUniquePublicId());
+        entity.setTitle(request.title());
+        entity.setActive(true);
+        entity.setContent(request.content());
+        entity.setOwnerName(request.ownerName());
+        entity.setEmergencyContactName(request.emergencyContactName());
+        entity.setEmergencyContactPhone(request.emergencyContactPhone());
+        entity.setUser(user);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
 
-        qrcodeRepository.save(entity);
-        return publicId;
+        QrcodeEntity saved = qrcodeRepository.save(entity);
+        saveInitialSections(saved, request.sections(), now);
+
+        return toResponse(saved);
     }
 
-    /**
-     * Owner-facing lookup: returns the plan whatever its active state, so the
-     * Gallery/Plan Detail/Edit Plan screens can still show a deactivated plan.
-     */
-    public QrcodeResponse getQrcodeByPublicId(String publicId) {
-        return toResponse(requireQrcode(publicId));
+    /** Owner-facing read: a deactivated plan is still visible to whoever owns it. */
+    public QrcodeResponse getOwnedQrcode(String publicId, String username) {
+        return toResponse(requireOwnedQrcode(publicId, username));
     }
 
     /**
@@ -81,14 +94,31 @@ public class QrcodeService {
         return toResponse(requirePublicQrcode(publicId));
     }
 
+    public Page<UserQrcodeResponse> listOwnedQrcodes(String username, Pageable pageable) {
+        return qrcodeRepository.findByUser_UsernameOrderByCreatedAtDesc(username, pageable)
+                .map(entity -> new UserQrcodeResponse(
+                        entity.getPublicId(),
+                        entity.getTitle(),
+                        entity.isActive(),
+                        entity.getCreatedAt(),
+                        entity.getUpdatedAt()));
+    }
+
+    public long countOwnedQrcodes(String username) {
+        return qrcodeRepository.countByUser_Username(username);
+    }
+
     @Transactional
-    public QrcodeResponse updateQrcode(String publicId, QrcodeUpdateRequest request) {
+    public QrcodeResponse updateQrcode(String publicId, QrcodeUpdateRequest request, String username) {
         QrcodeContentSanitizer.validate(request.content());
 
-        QrcodeEntity entity = requireQrcode(publicId);
+        QrcodeEntity entity = requireOwnedQrcode(publicId, username);
         entity.setTitle(request.title());
         entity.setActive(Boolean.TRUE.equals(request.isActive()));
         entity.setContent(request.content());
+        entity.setOwnerName(request.ownerName());
+        entity.setEmergencyContactName(request.emergencyContactName());
+        entity.setEmergencyContactPhone(request.emergencyContactPhone());
 
         // saveAndFlush, not save: @PreUpdate only fires when the change is
         // flushed, which would otherwise happen at commit — after the response
@@ -97,19 +127,25 @@ public class QrcodeService {
     }
 
     @Transactional
-    public void deleteQrcode(String publicId) {
-        qrcodeRepository.delete(requireQrcode(publicId));
+    public void deleteQrcode(String publicId, String username) {
+        qrcodeRepository.delete(requireOwnedQrcode(publicId, username));
     }
 
-    /** Throws {@link NotFoundException} unless the plan exists. */
-    public QrcodeEntity requireQrcode(String publicId) {
-        return qrcodeRepository.findByPublicId(publicId)
+    /**
+     * Resolves a plan the caller owns, or throws {@link NotFoundException}.
+     *
+     * <p>Someone else's plan is reported as absent, not forbidden: a 403 would
+     * confirm the id exists, which is enough to enumerate real plans.
+     */
+    public QrcodeEntity requireOwnedQrcode(String publicId, String username) {
+        return qrcodeRepository.findByPublicIdAndUser_Username(publicId, username)
                 .orElseThrow(() -> new NotFoundException("QR code not found"));
     }
 
     /** Throws {@link NotFoundException} unless the plan exists <em>and</em> is active. */
     public QrcodeEntity requirePublicQrcode(String publicId) {
-        QrcodeEntity entity = requireQrcode(publicId);
+        QrcodeEntity entity = qrcodeRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new NotFoundException("QR code not found"));
         if (!entity.isActive()) {
             throw new NotFoundException("QR code not found");
         }
@@ -121,10 +157,25 @@ public class QrcodeService {
                 entity.getPublicId(),
                 entity.getTitle(),
                 entity.getContent(),
+                entity.getOwnerName(),
+                entity.getEmergencyContactName(),
+                entity.getEmergencyContactPhone(),
                 entity.isActive(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
+    }
+
+    private void saveInitialSections(QrcodeEntity plan, List<SectionSaveRequest> sections, LocalDateTime now) {
+        if (sections == null || sections.isEmpty()) {
+            return;
+        }
+        List<SectionEntity> entities = new ArrayList<>(sections.size());
+        for (int i = 0; i < sections.size(); i++) {
+            SectionSaveRequest section = sections.get(i);
+            entities.add(new SectionEntity(plan, section.title(), section.content(), i, now, now));
+        }
+        sectionRepository.saveAll(entities);
     }
 
     private String generateUniquePublicId() {
