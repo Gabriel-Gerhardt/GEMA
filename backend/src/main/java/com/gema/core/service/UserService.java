@@ -2,12 +2,9 @@ package com.gema.core.service;
 
 import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.adapters.dto.response.UserDetailsResponse;
-import com.gema.adapters.dto.response.UserQrcodeResponse;
 import com.gema.core.model.Role;
-import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
-import com.gema.external.exception.NotFoundException;
 import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
@@ -16,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -76,39 +72,54 @@ public class UserService {
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getName());
     }
 
-    public UserDetailsResponse getUserDetails(Long id) {
-        UserEntity user = requireUser(id);
+    /**
+     * Reads the authenticated account.
+     *
+     * <p>This replaces the previous lookup by path id, which was reachable for
+     * any id and so exposed every account — and every account's plans — to
+     * anyone who could count. There is no longer a way to address an account
+     * other than the caller's own.
+     */
+    public UserDetailsResponse getCurrentUser(String username) {
+        UserEntity user = requireUser(username);
+        return toDetails(user);
+    }
 
-        List<UserQrcodeResponse> qrcodes = qrcodeRepository.findByUser_Id(id).stream()
-                .map(this::toUserQrcodeResponse)
-                .toList();
-
-        return new UserDetailsResponse(user.getId(), user.getUsername(), user.getName(), user.getRole(), qrcodes);
+    @Transactional
+    public UserDetailsResponse updateCurrentUser(String username, String name) {
+        UserEntity user = requireUser(username);
+        user.setName(name);
+        return toDetails(userRepository.save(user));
     }
 
     /**
-     * Deletes an account. The {@code qrcodes.user_id} foreign key cascades on
-     * delete, so the user's plans (and their sections, which cascade in turn)
-     * go with it — which is what "Excluir conta" has to mean for a product
-     * holding this kind of personal information.
+     * Deletes the authenticated account. The {@code qrcodes.user_id} foreign key
+     * cascades on delete, so the caller's plans (and their sections, which
+     * cascade in turn) go with it — which is what "Excluir conta" has to mean
+     * for a product holding this kind of personal information.
      */
     @Transactional
-    public void deleteUser(Long id) {
-        userRepository.delete(requireUser(id));
+    public void deleteCurrentUser(String username) {
+        userRepository.delete(requireUser(username));
     }
 
-    private UserEntity requireUser(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+    private UserDetailsResponse toDetails(UserEntity user) {
+        return new UserDetailsResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getName(),
+                user.getRole(),
+                qrcodeRepository.countByUser_Username(user.getUsername()));
     }
 
-    private UserQrcodeResponse toUserQrcodeResponse(QrcodeEntity entity) {
-        return new UserQrcodeResponse(
-                entity.getPublicId(),
-                entity.getTitle(),
-                entity.isActive(),
-                entity.getContent()
-        );
+    /**
+     * The subject came from a verified token, so an account that no longer
+     * exists means the token outlived it — a credential problem (401), not a
+     * missing resource (404).
+     */
+    private UserEntity requireUser(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
     }
 
     /**

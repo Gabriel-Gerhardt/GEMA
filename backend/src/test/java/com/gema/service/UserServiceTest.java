@@ -5,10 +5,8 @@ import com.gema.adapters.dto.response.UserDetailsResponse;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
-import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
-import com.gema.external.exception.NotFoundException;
 import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
@@ -20,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -173,73 +170,72 @@ class UserServiceTest {
         verifyNoInteractions(jwtService);
     }
 
+    // -----------------------------------------------------------------------
+    // the authenticated account
+    //
+    // Accounts used to be looked up by a path id that nobody checked, so any
+    // caller could read any account. Every read below is keyed on the token's
+    // subject; there is no longer a way to name a different account.
+
     @Test
-    void getUserDetails_userWithQrcodes_returnsUserAndQrcodes() {
-        // Arrange
+    void getCurrentUser_returnsTheAccountAndItsPlanCount() {
         UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
-        LocalDateTime now = LocalDateTime.now();
-        QrcodeEntity qrcode = new QrcodeEntity(10L, "public-id-1", "Emergency card", true, "content-1", user, now, now);
+        user.setName("Alice Souza");
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(qrcodeRepository.countByUser_Username("alice")).thenReturn(3L);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(qrcodeRepository.findByUser_Id(1L)).thenReturn(List.of(qrcode));
+        UserDetailsResponse response = userService.getCurrentUser("alice");
 
-        // Act
-        UserDetailsResponse response = userService.getUserDetails(1L);
-
-        // Assert
+        assertThat(response.id()).isEqualTo(1L);
         assertThat(response.username()).isEqualTo("alice");
+        assertThat(response.name()).isEqualTo("Alice Souza");
         assertThat(response.role()).isEqualTo(Role.USER);
-        assertThat(response.qrcodes()).hasSize(1);
-        assertThat(response.qrcodes().get(0).publicId()).isEqualTo("public-id-1");
-        assertThat(response.qrcodes().get(0).title()).isEqualTo("Emergency card");
-        assertThat(response.qrcodes().get(0).isActive()).isTrue();
-        assertThat(response.qrcodes().get(0).content()).isEqualTo("content-1");
+        // Profile renders "Planos criados" as a count; embedding the whole list
+        // in the account payload made it grow without bound.
+        assertThat(response.planCount()).isEqualTo(3L);
     }
 
     @Test
-    void getUserDetails_userWithNoQrcodes_returnsEmptyList() {
-        // Arrange
-        UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(qrcodeRepository.findByUser_Id(1L)).thenReturn(List.of());
+    void getCurrentUser_accountGoneButTokenStillValid_isUnauthorized() {
+        // The subject came off a verified token, so a missing account means the
+        // token outlived it — a credential problem, not a missing resource.
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
 
-        // Act
-        UserDetailsResponse response = userService.getUserDetails(1L);
-
-        // Assert
-        assertThat(response.qrcodes()).isEmpty();
-    }
-
-    @Test
-    void getUserDetails_userNotFound_throwsNotFound() {
-        // Arrange
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
-
-        // Act & Assert
-        assertThatThrownBy(() -> userService.getUserDetails(99L))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("User not found");
+        assertThatThrownBy(() -> userService.getCurrentUser("ghost"))
+                .isInstanceOf(UnauthorizedException.class);
 
         verifyNoInteractions(qrcodeRepository);
     }
 
     @Test
-    void deleteUser_existingUser_deletesIt() {
+    void updateCurrentUser_changesTheDisplayName() {
         UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(qrcodeRepository.countByUser_Username("alice")).thenReturn(0L);
 
-        userService.deleteUser(1L);
+        UserDetailsResponse response = userService.updateCurrentUser("alice", "Duda");
+
+        assertThat(response.name()).isEqualTo("Duda");
+        assertThat(user.getName()).isEqualTo("Duda");
+    }
+
+    @Test
+    void deleteCurrentUser_deletesTheAuthenticatedAccount() {
+        UserEntity user = new UserEntity(1L, "alice", "hashed-password", Role.USER, LocalDateTime.now());
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        userService.deleteCurrentUser("alice");
 
         verify(userRepository).delete(user);
     }
 
     @Test
-    void deleteUser_unknownUser_throwsNotFoundAndDeletesNothing() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+    void deleteCurrentUser_unknownSubject_deletesNothing() {
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.deleteUser(99L))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("User not found");
+        assertThatThrownBy(() -> userService.deleteCurrentUser("ghost"))
+                .isInstanceOf(UnauthorizedException.class);
 
         verify(userRepository, never()).delete(any());
     }

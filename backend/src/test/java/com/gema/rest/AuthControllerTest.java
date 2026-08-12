@@ -4,7 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
+import com.gema.core.service.JwtService;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.rest.AuthController;
 import org.junit.jupiter.api.Test;
@@ -23,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AuthController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class})
 class AuthControllerTest {
 
     @Autowired
@@ -31,6 +34,9 @@ class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @MockitoBean
     private UserService service;

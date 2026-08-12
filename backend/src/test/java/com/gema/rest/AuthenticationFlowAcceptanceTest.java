@@ -7,6 +7,8 @@ import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
@@ -51,7 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * call out explicitly.
  */
 @WebMvcTest(controllers = {AuthController.class, UserController.class})
-@Import({BeanConfig.class, GlobalExceptionHandler.class, UserService.class, JwtService.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class, UserService.class, JwtService.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=webmvc-wiring-acceptance-test-secret-key-32b-min!",
         "app.jwt.expiration-ms=3600000"
