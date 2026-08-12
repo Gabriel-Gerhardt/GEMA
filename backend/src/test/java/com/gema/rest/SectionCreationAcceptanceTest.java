@@ -7,7 +7,10 @@ import com.gema.core.service.QrcodeImageService;
 import com.gema.core.service.QrcodeService;
 import com.gema.core.service.SectionService;
 import com.gema.external.config.BeanConfig;
+import com.gema.core.service.JwtService;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.SectionEntity;
 import com.gema.external.entity.UserEntity;
@@ -22,6 +25,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -66,7 +70,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * a stubbed 404.
  */
 @WebMvcTest(controllers = {QrcodeController.class, SectionController.class})
-@Import({BeanConfig.class, GlobalExceptionHandler.class, QrcodeService.class, SectionService.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class, QrcodeService.class, SectionService.class})
 class SectionCreationAcceptanceTest {
 
     @Autowired
@@ -74,6 +78,9 @@ class SectionCreationAcceptanceTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @MockitoBean
     private QrcodeRepository qrcodeRepository;
@@ -88,11 +95,12 @@ class SectionCreationAcceptanceTest {
     private QrcodeImageService imageService;
 
     @Test
+    @WithMockUser(username = "alice")
     void createQrcodeThenCreateSection_fullJourney_sectionIsAssociatedWithCreatedQrcode() throws Exception {
         // -- Create the QR code --
         UserEntity user = new UserEntity("alice", "hashed-pw", Role.USER, LocalDateTime.now());
         user.setId(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
 
         AtomicReference<QrcodeEntity> savedQrcode = new AtomicReference<>();
@@ -105,8 +113,7 @@ class SectionCreationAcceptanceTest {
 
         Map<String, Object> qrcodeBody = Map.of(
                 "title", "My QR Code",
-                "content", "A description",
-                "userId", 1
+                "content", "A description"
         );
 
         MvcResult qrcodeResult = mockMvc.perform(post("/api/qrcodes")
@@ -120,7 +127,7 @@ class SectionCreationAcceptanceTest {
         assertThat(savedQrcode.get()).isNotNull();
 
         // -- Create a section on the just-created QR code --
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(savedQrcode.get()));
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.of(savedQrcode.get()));
         when(sectionRepository.save(any())).thenAnswer(inv -> {
             var entity = inv.getArgument(0, com.gema.external.entity.SectionEntity.class);
             entity.setId(42L);
@@ -145,9 +152,10 @@ class SectionCreationAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void createSection_qrcodeDoesNotExist_realServiceWiringReturns404() throws Exception {
         String publicId = "does-not-exist";
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.empty());
 
         Map<String, Object> sectionBody = Map.of(
                 "title", "Section Title",
@@ -161,11 +169,12 @@ class SectionCreationAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void createSectionThenGetAndReplace_fullJourney_replacementReplacesEarlierSections() throws Exception {
         // -- Create the QR code --
         UserEntity user = new UserEntity("alice", "hashed-pw", Role.USER, LocalDateTime.now());
         user.setId(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
 
         AtomicReference<QrcodeEntity> savedQrcode = new AtomicReference<>();
@@ -178,8 +187,7 @@ class SectionCreationAcceptanceTest {
 
         Map<String, Object> qrcodeBody = Map.of(
                 "title", "My QR Code",
-                "content", "A description",
-                "userId", 1
+                "content", "A description"
         );
 
         MvcResult qrcodeResult = mockMvc.perform(post("/api/qrcodes")
@@ -189,7 +197,7 @@ class SectionCreationAcceptanceTest {
                 .andReturn();
 
         String publicId = readPublicId(qrcodeResult);
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(savedQrcode.get()));
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.of(savedQrcode.get()));
 
         // -- Create a section --
         when(sectionRepository.save(any())).thenAnswer(inv -> {
@@ -249,6 +257,7 @@ class SectionCreationAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void getSections_qrcodeExistsWithNoSections_realServiceWiringReturns200WithEmptyArray() throws Exception {
         // Distinguishes "QR code exists but has zero sections" (200, []) from
         // "QR code does not exist" (404) through the real controller -> service
@@ -258,7 +267,7 @@ class SectionCreationAcceptanceTest {
         qrcode.setId(7L);
         qrcode.setPublicId(publicId);
 
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.of(qrcode));
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(publicId)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
@@ -267,6 +276,7 @@ class SectionCreationAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void replaceSections_calledTwiceWithSameMultiSectionPayload_realServiceWiringIsIdempotentInContent() throws Exception {
         // Exercises the real service/@Transactional replace flow (not the
         // mocked-service unit test) with more than one section, confirming
@@ -278,7 +288,7 @@ class SectionCreationAcceptanceTest {
         qrcode.setId(9L);
         qrcode.setPublicId(publicId);
 
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.of(qrcode));
 
         // Stateful stub: a stub that always answered "no existing rows" could
         // not tell in-place updates apart from delete-and-recreate, which is
@@ -343,18 +353,20 @@ class SectionCreationAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void getSections_qrcodeDoesNotExist_realServiceWiringReturns404() throws Exception {
         String publicId = "does-not-exist";
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isNotFound());
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void replaceSections_qrcodeDoesNotExist_realServiceWiringReturns404() throws Exception {
         String publicId = "does-not-exist";
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.empty());
 
         Map<String, Object> body = Map.of(
                 "sections", List.of(Map.of("title", "Title", "content", "Content"))

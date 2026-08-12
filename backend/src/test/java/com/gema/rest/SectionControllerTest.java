@@ -5,7 +5,10 @@ import com.gema.adapters.dto.response.SectionCreateResponse;
 import com.gema.adapters.dto.response.SectionResponse;
 import com.gema.core.service.SectionService;
 import com.gema.external.config.BeanConfig;
+import com.gema.core.service.JwtService;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.exception.NotFoundException;
 import com.gema.external.rest.SectionController;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -31,8 +35,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(SectionController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class})
 class SectionControllerTest {
+
+    private static final String OWNER = "alice";
 
     @Autowired
     private MockMvc mockMvc;
@@ -43,11 +49,15 @@ class SectionControllerTest {
     @MockitoBean
     private SectionService service;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     // -----------------------------------------------------------------------
     // POST /api/q/{publicId}/sections
     // -----------------------------------------------------------------------
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_validRequest_returns201WithBody() throws Exception {
         String publicId = "abc-123-xyz";
         LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
@@ -61,7 +71,7 @@ class SectionControllerTest {
                 now,
                 now
         );
-        when(service.createSection(eq(publicId), any())).thenReturn(response);
+        when(service.createSection(eq(publicId), any(), eq(OWNER))).thenReturn(response);
 
         Map<String, Object> body = Map.of(
                 "title", "Section Title",
@@ -80,6 +90,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_blankTitle_returns400() throws Exception {
         Map<String, Object> body = Map.of(
                 "title", "",
@@ -93,6 +104,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_blankContent_returns400() throws Exception {
         Map<String, Object> body = Map.of(
                 "title", "Section Title",
@@ -106,6 +118,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_titleOverMaxLength_returns400() throws Exception {
         // Regression guard for the "Unsafe code" rejection on the original PR:
         // title must be bounded before it reaches the VARCHAR(255) column.
@@ -123,6 +136,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_contentOverMaxLength_returns400() throws Exception {
         Map<String, Object> body = Map.of(
                 "title", "Section Title",
@@ -138,9 +152,10 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_nonexistentQrcode_returns404() throws Exception {
         String publicId = "nonexistent-id";
-        when(service.createSection(eq(publicId), any()))
+        when(service.createSection(eq(publicId), any(), eq(OWNER)))
                 .thenThrow(new NotFoundException("QR code not found"));
 
         Map<String, Object> body = Map.of(
@@ -155,6 +170,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_whitespaceOnlyTitle_returns400() throws Exception {
         Map<String, Object> body = Map.of(
                 "title", "   ",
@@ -170,6 +186,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void createSection_missingTitleField_returns400() throws Exception {
         String body = "{\"content\":\"Section content\"}";
 
@@ -184,13 +201,14 @@ class SectionControllerTest {
     // -----------------------------------------------------------------------
 
     @Test
+    @WithMockUser(username = OWNER)
     void getSections_validQrcode_returns200WithSections() throws Exception {
         String publicId = "abc-123-xyz";
         LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
 
         SectionResponse first = new SectionResponse(10L, publicId, "First", "Content A", 0, now, now);
         SectionResponse second = new SectionResponse(11L, publicId, "Second", "Content B", 0, now, now);
-        when(service.getSections(publicId)).thenReturn(List.of(first, second));
+        when(service.getSections(publicId, OWNER)).thenReturn(List.of(first, second));
 
         mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
@@ -203,11 +221,12 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void getSections_qrcodeWithNoSections_returns200WithEmptyArray() throws Exception {
         // Zero sections is not the same as a missing QR code: must be 200 + [],
         // never a 404, since the acceptance criteria only ties 404 to the QR code itself.
         String publicId = "abc-123-xyz";
-        when(service.getSections(publicId)).thenReturn(List.of());
+        when(service.getSections(publicId, OWNER)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
@@ -216,9 +235,10 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void getSections_nonexistentQrcode_returns404() throws Exception {
         String publicId = "nonexistent-id";
-        when(service.getSections(publicId)).thenThrow(new NotFoundException("QR code not found"));
+        when(service.getSections(publicId, OWNER)).thenThrow(new NotFoundException("QR code not found"));
 
         mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isNotFound());
@@ -229,12 +249,13 @@ class SectionControllerTest {
     // -----------------------------------------------------------------------
 
     @Test
+    @WithMockUser(username = OWNER)
     void replaceSections_validRequest_returns200WithReplacedSections() throws Exception {
         String publicId = "abc-123-xyz";
         LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
 
         SectionResponse response = new SectionResponse(15L, publicId, "New Title", "New Content", 0, now, now);
-        when(service.replaceSections(eq(publicId), any())).thenReturn(List.of(response));
+        when(service.replaceSections(eq(publicId), any(), eq(OWNER))).thenReturn(List.of(response));
 
         Map<String, Object> body = Map.of(
                 "sections", List.of(Map.of("title", "New Title", "content", "New Content"))
@@ -251,9 +272,10 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void replaceSections_emptyList_returns200WithEmptyArray() throws Exception {
         String publicId = "abc-123-xyz";
-        when(service.replaceSections(eq(publicId), any())).thenReturn(List.of());
+        when(service.replaceSections(eq(publicId), any(), eq(OWNER))).thenReturn(List.of());
 
         Map<String, Object> body = Map.of("sections", List.of());
 
@@ -265,9 +287,10 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void replaceSections_nonexistentQrcode_returns404() throws Exception {
         String publicId = "nonexistent-id";
-        when(service.replaceSections(eq(publicId), any()))
+        when(service.replaceSections(eq(publicId), any(), eq(OWNER)))
                 .thenThrow(new NotFoundException("QR code not found"));
 
         Map<String, Object> body = Map.of(
@@ -281,6 +304,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void replaceSections_blankTitleInList_returns400() throws Exception {
         Map<String, Object> body = Map.of(
                 "sections", List.of(Map.of("title", "", "content", "Content"))
@@ -295,6 +319,7 @@ class SectionControllerTest {
     }
 
     @Test
+    @WithMockUser(username = OWNER)
     void replaceSections_missingSectionsField_returns400() throws Exception {
         String body = "{}";
 
@@ -337,12 +362,13 @@ class SectionControllerTest {
 
     @Test
     void publicPrefix_doesNotExposeWrites() throws Exception {
-        // Section writes live under /api/qrcodes/** so the JWT filter can gate
-        // the owner surface with a single matcher. The public prefix must not
-        // carry a write route at all.
+        // Section writes live under /api/qrcodes/**. The public prefix carries no
+        // write route, and only GET is permitted there, so an unauthenticated
+        // write is turned away by the authorization rules before routing ever
+        // gets a chance to report "no such method".
         mockMvc.perform(put("/api/q/{publicId}/sections", "abc-123-xyz")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"sections\":[]}"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().isUnauthorized());
     }
 }

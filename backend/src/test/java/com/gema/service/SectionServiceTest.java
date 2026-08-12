@@ -30,6 +30,7 @@ import static org.mockito.Mockito.*;
 class SectionServiceTest {
 
     private static final String PUBLIC_ID = "qr-public-id";
+    private static final String OWNER = "alice";
 
     @Mock
     private SectionRepository sectionRepository;
@@ -74,7 +75,7 @@ class SectionServiceTest {
     void createSection_happyPath_savesEntityAndReturnsResponse() {
         SectionSaveRequest request = new SectionSaveRequest("Section Title", "Section content");
 
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.countByQrcode_PublicId(PUBLIC_ID)).thenReturn(0);
         when(sectionRepository.save(any(SectionEntity.class))).thenAnswer(invocation -> {
             SectionEntity entity = invocation.getArgument(0);
@@ -82,7 +83,7 @@ class SectionServiceTest {
             return entity;
         });
 
-        SectionCreateResponse response = sectionService.createSection(PUBLIC_ID, request);
+        SectionCreateResponse response = sectionService.createSection(PUBLIC_ID, request, OWNER);
 
         ArgumentCaptor<SectionEntity> captor = ArgumentCaptor.forClass(SectionEntity.class);
         verify(sectionRepository).save(captor.capture());
@@ -104,21 +105,21 @@ class SectionServiceTest {
     void createSection_appendsAfterExistingSections() {
         // A new section must land at the end of the list, not collide with
         // sort order 0 and silently jump to the top of someone's guide.
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.countByQrcode_PublicId(PUBLIC_ID)).thenReturn(3);
         when(sectionRepository.save(any(SectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SectionCreateResponse response =
-                sectionService.createSection(PUBLIC_ID, new SectionSaveRequest("Fourth", "Content"));
+                sectionService.createSection(PUBLIC_ID, new SectionSaveRequest("Fourth", "Content"), OWNER);
 
         assertThat(response.sortOrder()).isEqualTo(3);
     }
 
     @Test
     void createSection_qrcodeNotFound_propagatesNotFoundAndSavesNothing() {
-        when(qrcodeService.requireQrcode("nope")).thenThrow(new NotFoundException("QR code not found"));
+        when(qrcodeService.requireOwnedQrcode("nope", OWNER)).thenThrow(new NotFoundException("QR code not found"));
 
-        assertThatThrownBy(() -> sectionService.createSection("nope", new SectionSaveRequest("T", "C")))
+        assertThatThrownBy(() -> sectionService.createSection("nope", new SectionSaveRequest("T", "C"), OWNER))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("QR code not found");
 
@@ -130,11 +131,11 @@ class SectionServiceTest {
 
     @Test
     void getSections_happyPath_returnsSectionsInSortOrder() {
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID))
                 .thenReturn(List.of(section(10L, "First", "Content A", 0), section(11L, "Second", "Content B", 1)));
 
-        List<SectionResponse> response = sectionService.getSections(PUBLIC_ID);
+        List<SectionResponse> response = sectionService.getSections(PUBLIC_ID, OWNER);
 
         assertThat(response).hasSize(2);
         assertThat(response.get(0).id()).isEqualTo(10L);
@@ -148,9 +149,9 @@ class SectionServiceTest {
 
     @Test
     void getSections_qrcodeNotFound_throwsNotFoundException() {
-        when(qrcodeService.requireQrcode("nonexistent-id")).thenThrow(new NotFoundException("QR code not found"));
+        when(qrcodeService.requireOwnedQrcode("nonexistent-id", OWNER)).thenThrow(new NotFoundException("QR code not found"));
 
-        assertThatThrownBy(() -> sectionService.getSections("nonexistent-id"))
+        assertThatThrownBy(() -> sectionService.getSections("nonexistent-id", OWNER))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("QR code not found");
 
@@ -161,10 +162,10 @@ class SectionServiceTest {
     void getSections_qrcodeExistsWithNoSections_returnsEmptyListNotNotFound() {
         // Acceptance criteria only mandates 404 when the QR code itself is missing;
         // a QR code that exists but simply has zero sections must still be a 200 with [].
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of());
 
-        assertThat(sectionService.getSections(PUBLIC_ID)).isEmpty();
+        assertThat(sectionService.getSections(PUBLIC_ID, OWNER)).isEmpty();
     }
 
     @Test
@@ -177,7 +178,7 @@ class SectionServiceTest {
                 .thenReturn(List.of(section(10L, "First", "Content A", 0)));
 
         assertThat(sectionService.getPublicSections(PUBLIC_ID)).hasSize(1);
-        verify(qrcodeService, never()).requireQrcode(any());
+        verify(qrcodeService, never()).requireOwnedQrcode(any(), any());
     }
 
     @Test
@@ -195,12 +196,11 @@ class SectionServiceTest {
 
     @Test
     void replaceSections_happyPath_persistsSubmittedContent() {
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of());
         stubSaveAllEchoingInput(100L);
 
-        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID,
-                new SectionListSaveRequest(List.of(new SectionSaveRequest("New Title", "New Content"))));
+        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID, new SectionListSaveRequest(List.of(new SectionSaveRequest("New Title", "New Content"))), OWNER);
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).title()).isEqualTo("New Title");
@@ -217,12 +217,11 @@ class SectionServiceTest {
         SectionEntity existing = section(55L, "Old Title", "Old Content", 0);
         LocalDateTime originalCreatedAt = existing.getCreatedAt();
 
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of(existing));
         stubSaveAllEchoingInput(900L);
 
-        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID,
-                new SectionListSaveRequest(List.of(new SectionSaveRequest("Edited Title", "Edited Content"))));
+        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID, new SectionListSaveRequest(List.of(new SectionSaveRequest("Edited Title", "Edited Content"))), OWNER);
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).id()).isEqualTo(55L);
@@ -236,13 +235,12 @@ class SectionServiceTest {
         SectionEntity keep = section(1L, "Keep", "A", 0);
         SectionEntity drop = section(2L, "Drop", "B", 1);
 
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID))
                 .thenReturn(List.of(keep, drop));
         stubSaveAllEchoingInput(900L);
 
-        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID,
-                new SectionListSaveRequest(List.of(new SectionSaveRequest("Keep", "A"))));
+        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID, new SectionListSaveRequest(List.of(new SectionSaveRequest("Keep", "A"))), OWNER);
 
         assertThat(response).hasSize(1);
         ArgumentCaptor<List<SectionEntity>> captor = ArgumentCaptor.forClass(List.class);
@@ -254,12 +252,11 @@ class SectionServiceTest {
     void replaceSections_emptyList_clearsAllSectionsAndReturnsEmptyList() {
         SectionEntity existing = section(1L, "Gone", "A", 0);
 
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of(existing));
         when(sectionRepository.saveAll(anyList())).thenReturn(List.of());
 
-        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID,
-                new SectionListSaveRequest(List.of()));
+        List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID, new SectionListSaveRequest(List.of()), OWNER);
 
         verify(sectionRepository).deleteAll(List.of(existing));
         assertThat(response).isEmpty();
@@ -267,7 +264,7 @@ class SectionServiceTest {
 
     @Test
     void replaceSections_multipleSections_assignsSortOrderInRequestOrder() {
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of());
         stubSaveAllEchoingInput(300L);
 
@@ -275,7 +272,7 @@ class SectionServiceTest {
                 new SectionSaveRequest("First Title", "First Content"),
                 new SectionSaveRequest("Second Title", "Second Content"),
                 new SectionSaveRequest("Third Title", "Third Content")
-        )));
+        )), OWNER);
 
         assertThat(response).hasSize(3);
         assertThat(response).extracting(SectionResponse::title)
@@ -291,7 +288,7 @@ class SectionServiceTest {
         SectionEntity first = section(1L, "A", "content A", 0);
         SectionEntity second = section(2L, "B", "content B", 1);
 
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID))
                 .thenReturn(List.of(first, second));
         stubSaveAllEchoingInput(900L);
@@ -299,7 +296,7 @@ class SectionServiceTest {
         List<SectionResponse> response = sectionService.replaceSections(PUBLIC_ID, new SectionListSaveRequest(List.of(
                 new SectionSaveRequest("B", "content B"),
                 new SectionSaveRequest("A", "content A")
-        )));
+        )), OWNER);
 
         assertThat(response).extracting(SectionResponse::title).containsExactly("B", "A");
         assertThat(response).extracting(SectionResponse::sortOrder).containsExactly(0, 1);
@@ -308,10 +305,9 @@ class SectionServiceTest {
 
     @Test
     void replaceSections_qrcodeNotFound_throwsNotFoundExceptionAndWritesNothing() {
-        when(qrcodeService.requireQrcode("nonexistent-id")).thenThrow(new NotFoundException("QR code not found"));
+        when(qrcodeService.requireOwnedQrcode("nonexistent-id", OWNER)).thenThrow(new NotFoundException("QR code not found"));
 
-        assertThatThrownBy(() -> sectionService.replaceSections("nonexistent-id",
-                new SectionListSaveRequest(List.of(new SectionSaveRequest("Title", "Content")))))
+        assertThatThrownBy(() -> sectionService.replaceSections("nonexistent-id", new SectionListSaveRequest(List.of(new SectionSaveRequest("Title", "Content"))), OWNER))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("QR code not found");
 
@@ -321,15 +317,15 @@ class SectionServiceTest {
 
     @Test
     void replaceSections_calledTwiceWithSamePayload_isIdempotentInContent() {
-        when(qrcodeService.requireQrcode(PUBLIC_ID)).thenReturn(qrcode);
+        when(qrcodeService.requireOwnedQrcode(PUBLIC_ID, OWNER)).thenReturn(qrcode);
         when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(PUBLIC_ID)).thenReturn(List.of());
         stubSaveAllEchoingInput(200L);
 
         SectionListSaveRequest request =
                 new SectionListSaveRequest(List.of(new SectionSaveRequest("Title", "Content")));
 
-        List<SectionResponse> firstCall = sectionService.replaceSections(PUBLIC_ID, request);
-        List<SectionResponse> secondCall = sectionService.replaceSections(PUBLIC_ID, request);
+        List<SectionResponse> firstCall = sectionService.replaceSections(PUBLIC_ID, request, OWNER);
+        List<SectionResponse> secondCall = sectionService.replaceSections(PUBLIC_ID, request, OWNER);
 
         assertThat(firstCall).hasSize(1);
         assertThat(secondCall).hasSize(1);

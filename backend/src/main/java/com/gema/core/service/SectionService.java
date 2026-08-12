@@ -26,8 +26,8 @@ public class SectionService {
     }
 
     @Transactional
-    public SectionCreateResponse createSection(String qrcodePublicId, SectionSaveRequest request) {
-        QrcodeEntity qrcode = qrcodeService.requireQrcode(qrcodePublicId);
+    public SectionCreateResponse createSection(String qrcodePublicId, SectionSaveRequest request, String username) {
+        QrcodeEntity qrcode = qrcodeService.requireOwnedQrcode(qrcodePublicId, username);
 
         LocalDateTime now = LocalDateTime.now();
         int nextSortOrder = sectionRepository.countByQrcode_PublicId(qrcode.getPublicId());
@@ -46,8 +46,8 @@ public class SectionService {
     }
 
     /** Owner-facing read: returns sections whatever the plan's active state. */
-    public List<SectionResponse> getSections(String qrcodePublicId) {
-        return readSections(qrcodeService.requireQrcode(qrcodePublicId));
+    public List<SectionResponse> getSections(String qrcodePublicId, String username) {
+        return readSections(qrcodeService.requireOwnedQrcode(qrcodePublicId, username));
     }
 
     /** Public read for the scanned guide: 404s when the plan is deactivated. */
@@ -64,8 +64,8 @@ public class SectionService {
      * on each save, and made ordering depend on insert order.
      */
     @Transactional
-    public List<SectionResponse> replaceSections(String qrcodePublicId, SectionListSaveRequest request) {
-        QrcodeEntity qrcode = qrcodeService.requireQrcode(qrcodePublicId);
+    public List<SectionResponse> replaceSections(String qrcodePublicId, SectionListSaveRequest request, String username) {
+        QrcodeEntity qrcode = qrcodeService.requireOwnedQrcode(qrcodePublicId, username);
 
         List<SectionEntity> existing =
                 sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(qrcode.getPublicId());
