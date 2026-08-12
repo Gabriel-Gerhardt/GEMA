@@ -11,6 +11,8 @@ export const SEED_PLANS: Plan[] = [
     active: true,
     createdAt: '2026-06-12',
     ownerName: 'Lucas',
+    emergencyContactName: 'Ana — minha mãe',
+    emergencyContactPhone: '51999990000',
     sections: [
       {
         id: 'seed-section-1',

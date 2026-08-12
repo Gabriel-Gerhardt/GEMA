@@ -118,4 +118,34 @@ describe('EmergencyGuideScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Ligar agora' }));
     expect(Linking.openURL).not.toHaveBeenCalled();
   });
+  it('prefers the structured contact phone over scanning the section text', async () => {
+    // The call action is the one thing on this screen that has to work under
+    // pressure; it must not depend on how the prose was punctuated.
+    (usePlans as jest.Mock).mockReturnValue({
+      getPlanByPublicId: () => ({
+        ...PLAN,
+        emergencyContactName: 'Ana — minha mãe',
+        emergencyContactPhone: '(51) 98888-1111',
+        sections: [{ id: 's3', title: 'Em uma emergência', content: 'ligue para 51 99999-0000' }],
+      }),
+    });
+    const user = userEvent.setup();
+    await render(<EmergencyGuideScreen />);
+    await user.press(screen.getByRole('button', { name: 'Ligar agora' }));
+    expect(Linking.openURL).toHaveBeenCalledWith('tel:51988881111');
+  });
+
+  it('still shows the contact panel when only structured fields are set', async () => {
+    (usePlans as jest.Mock).mockReturnValue({
+      getPlanByPublicId: () => ({
+        ...PLAN,
+        emergencyContactName: 'Ana — minha mãe',
+        emergencyContactPhone: '51988881111',
+        sections: [{ id: 's1', title: 'Sobre mim', content: 'Sou autista.' }],
+      }),
+    });
+    await render(<EmergencyGuideScreen />);
+    expect(screen.getByText('Ana — minha mãe')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Ligar agora' })).toBeOnTheScreen();
+  });
 });

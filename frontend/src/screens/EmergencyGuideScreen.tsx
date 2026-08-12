@@ -9,11 +9,10 @@ import { usePlans } from '../state/PlansContext';
 import type { Section } from '../state/types';
 import type { PublicStackParamList } from '../navigation/types';
 
-/** Best-effort phone extraction from the emergency section's free-text
- * content — the Section model has no structured contact fields (out of
- * scope for this issue). Ceiling: if no digit run is found, the call
- * button is disabled rather than guessing. Upgrade path: add structured
- * contact fields to the plan/section data model. */
+/** Fallback phone extraction from the emergency section's free-text content,
+ * used only for plans written before the structured contact fields existed.
+ * Best-effort by nature: if no digit run is found, the call button is disabled
+ * rather than guessing. */
 function extractPhoneDigits(text: string): string | null {
   const match = text.match(/[\d()+\-\s]{8,}/);
   if (!match) return null;
@@ -64,7 +63,14 @@ export function EmergencyGuideScreen() {
   const emergencyIndex = findEmergencyIndex(plan.sections);
   const emergencySection = emergencyIndex >= 0 ? plan.sections[emergencyIndex] : null;
   const bodySections = plan.sections.filter((_, index) => index !== emergencyIndex);
-  const phoneDigits = emergencySection ? extractPhoneDigits(emergencySection.content) : null;
+
+  // Prefer the structured field; scanning prose is the legacy path. This is the
+  // one action on the screen that has to work under pressure, so it should not
+  // depend on how somebody happened to punctuate a sentence.
+  const structuredPhone = plan.emergencyContactPhone?.replace(/\D/g, '') || null;
+  const phoneDigits =
+    structuredPhone ?? (emergencySection ? extractPhoneDigits(emergencySection.content) : null);
+  const hasContactPanel = Boolean(emergencySection || plan.emergencyContactName || phoneDigits);
 
   // The design's greeting headline ("Olá, meu nome é Lucas.") + framing
   // paragraph is the first section rendered as plain text, not as a
@@ -102,13 +108,13 @@ export function EmergencyGuideScreen() {
           ))}
         </View>
 
-        {emergencySection ? (
+        {hasContactPanel ? (
           <View className="mt-auto rounded-card-sm border border-mint-border bg-mint-surface p-5">
             <Text className="font-figtreeBold text-[12px] uppercase tracking-[0.1em] text-gold-dark">
-              {emergencySection.title}
+              {emergencySection?.title ?? 'Em uma emergência'}
             </Text>
             <Text className="mt-2 font-figtree text-[15px] leading-[1.4] text-text-primary">
-              {emergencySection.content}
+              {plan.emergencyContactName ?? emergencySection?.content}
             </Text>
             <Button
               onPress={() => phoneDigits && Linking.openURL(`tel:${phoneDigits}`)}
