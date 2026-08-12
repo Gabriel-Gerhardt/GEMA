@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.security.SecureRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,9 +64,23 @@ class QrcodeImageServiceTest {
     }
 
     private String decode(byte[] png) throws Exception {
+        return decodeToResult(png).getText();
+    }
+
+    private Result decodeToResult(byte[] png) throws Exception {
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
         BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));
-        Result result = new MultiFormatReader().decode(bitmap);
-        return result.getText();
+        return new MultiFormatReader().decode(bitmap);
+    }
+    @Test
+    void generatePng_accentedContent_survivesTheRoundTrip() throws Exception {
+        // UTF-8 is declared only when the content needs it, because doing so
+        // unconditionally added an ECI segment that measured six times worse on
+        // the ASCII URLs that make up virtually every code. The charset
+        // detection has to be right, though: zxing's byte mode defaults to
+        // ISO-8859-1 and silently turns anything outside it into '?'.
+        String content = "http://localhost:8081/q/abc123xyz0?nome=Ana Conceição";
+
+        assertThat(decode(imageService.generatePng(content))).isEqualTo(content);
     }
 }
