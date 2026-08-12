@@ -39,33 +39,39 @@ The dependency rule is strict: the core must not depend on adapters, frameworks,
 
 ## API
 
-Routes are split by audience:
+Routes are split by audience, and the split carries the authorization rule:
 
-| Prefix | Audience | Notes |
+| Prefix | Audience | Auth |
 |---|---|---|
-| `/api/q/**` | Public — reached by scanning a QR code | Read-only; serves **active** plans only |
-| `/api/qrcodes/**` | Plan owner | Full create/read/update/delete, any active state |
-| `/api/users/**`, `/api/auth/**` | Accounts | Register, login, read, delete |
+| `/api/q/**` | Public — reached by scanning a QR code | None. Read-only, **active plans only** |
+| `/api/qrcodes/**` | Plan owner | Bearer token; every operation scoped to the caller's own plans |
+| `/api/users/me` | Account holder | Bearer token |
+| `POST /api/users`, `/api/auth/**` | Anyone | None — this is how you obtain a token |
 
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/api/users` | Register (returns token + user id) |
 | `POST` | `/api/auth/login` | Log in |
-| `GET` | `/api/users/{id}` | Account details and its plans |
-| `DELETE` | `/api/users/{id}` | Delete account (cascades to plans) |
-| `POST` | `/api/qrcodes` | Create a plan |
+| `GET` | `/api/users/me` | The authenticated account and its plan count |
+| `PUT` | `/api/users/me` | Update display name |
+| `DELETE` | `/api/users/me` | Delete account (cascades to plans) |
+| `GET` | `/api/qrcodes` | The caller's plans, paginated (`?page=&size=`) |
+| `POST` | `/api/qrcodes` | Create a plan, optionally with its sections in one transaction |
 | `GET` | `/api/qrcodes/{publicId}` | Read a plan as its owner |
-| `PUT` | `/api/qrcodes/{publicId}` | Rename / toggle active |
+| `PUT` | `/api/qrcodes/{publicId}` | Rename / toggle active / set contact |
 | `DELETE` | `/api/qrcodes/{publicId}` | Delete a plan |
 | `GET` | `/api/qrcodes/{publicId}/image` | PNG of the plan's QR code |
 | `GET`/`POST`/`PUT` | `/api/qrcodes/{publicId}/sections` | Manage sections |
 | `GET` | `/api/q/{publicId}` | Public guide (404 if deactivated) |
 | `GET` | `/api/q/{publicId}/sections` | Public guide sections (404 if deactivated) |
 
-> **Not yet authenticated.** A JWT is issued at register/login, but no filter
-> validates it, so every route above is currently reachable without one. The
-> prefix split exists so the owner surface can be gated with a single matcher
-> once that work lands. Do not deploy this as-is.
+Send the token as `Authorization: Bearer <token>`. A plan belonging to another
+account reads as **404, not 403** — a 403 would confirm the id exists, which is
+enough to enumerate real plans.
+
+Accounts are addressable only as `/me`. There is deliberately no
+`/api/users/{id}`: it accepted any id, so sequential ids exposed every account
+and every account's plans.
 
 ## Set-up
 
