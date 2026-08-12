@@ -1,6 +1,7 @@
 package com.gema.service;
 
 import com.gema.adapters.dto.request.QrcodeSaveRequest;
+import com.gema.adapters.dto.request.QrcodeUpdateRequest;
 import com.gema.adapters.dto.response.QrcodeResponse;
 import com.gema.core.service.QrcodeService;
 import com.gema.external.entity.QrcodeEntity;
@@ -75,16 +76,19 @@ class QrcodeServiceTest {
     }
 
     @Test
-    void createQrcode_blankContent_throwsBadRequestException_andNeverSaves() {
-        // Arrange
-        QrcodeSaveRequest request = new QrcodeSaveRequest("My QR", "   ", 1L);
+    void createQrcode_omittedContent_isAccepted() {
+        // A plan's content lives in its sections; the legacy free-text field is
+        // optional, so a plan created without one must still save.
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // Act & Assert
-        assertThatThrownBy(() -> qrcodeService.createQrcode(request))
-                .isInstanceOf(BadRequestException.class);
+        String publicId = qrcodeService.createQrcode(new QrcodeSaveRequest("My QR", null, 1L));
 
-        verify(userRepository, never()).findById(any());
-        verify(qrcodeRepository, never()).save(any());
+        assertThat(publicId).isNotBlank();
+        verify(qrcodeRepository).save(any(QrcodeEntity.class));
     }
 
     @Test
@@ -224,5 +228,136 @@ class QrcodeServiceTest {
         assertThatThrownBy(() -> qrcodeService.getQrcodeByPublicId(publicId))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("QR code not found");
+    }
+    // -----------------------------------------------------------------------
+    // public vs owner lookup
+
+    private QrcodeEntity qrcode(String publicId, boolean active) {
+        LocalDateTime now = LocalDateTime.now();
+        QrcodeEntity entity = new QrcodeEntity();
+        entity.setId(1L);
+        entity.setPublicId(publicId);
+        entity.setTitle("Guia");
+        entity.setActive(active);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        return entity;
+    }
+
+    @Test
+    void getPublicQrcodeByPublicId_activePlan_returnsIt() {
+        when(qrcodeRepository.findByPublicId("abc")).thenReturn(Optional.of(qrcode("abc", true)));
+
+        assertThat(qrcodeService.getPublicQrcodeByPublicId("abc").publicId()).isEqualTo("abc");
+    }
+
+    @Test
+    void getPublicQrcodeByPublicId_deactivatedPlan_isTreatedAsAbsent() {
+        // The Ativo/Inativo toggle exists so an owner can pull their emergency
+        // information out of circulation. That only means something if the
+        // public guide genuinely stops resolving, not merely reports a flag.
+        when(qrcodeRepository.findByPublicId("abc")).thenReturn(Optional.of(qrcode("abc", false)));
+
+        assertThatThrownBy(() -> qrcodeService.getPublicQrcodeByPublicId("abc"))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("QR code not found");
+    }
+
+    @Test
+    void getQrcodeByPublicId_deactivatedPlan_isStillVisibleToItsOwner() {
+        // Gallery / Plan Detail / Edit Plan must keep showing a deactivated plan.
+        when(qrcodeRepository.findByPublicId("abc")).thenReturn(Optional.of(qrcode("abc", false)));
+
+        QrcodeResponse response = qrcodeService.getQrcodeByPublicId("abc");
+
+        assertThat(response.publicId()).isEqualTo("abc");
+        assertThat(response.isActive()).isFalse();
+    }
+
+    // -----------------------------------------------------------------------
+    // update / delete
+
+    @Test
+    void updateQrcode_renamesAndTogglesActive() {
+        QrcodeEntity entity = qrcode("abc", true);
+        when(qrcodeRepository.findByPublicId("abc")).thenReturn(Optional.of(entity));
+        when(qrcodeRepository.saveAndFlush(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        QrcodeResponse response =
+                qrcodeService.updateQrcode("abc", new QrcodeUpdateRequest("Renomeado", false, null));
+
+        assertThat(response.title()).isEqualTo("Renomeado");
+        assertThat(response.isActive()).isFalse();
+        assertThat(entity.getTitle()).isEqualTo("Renomeado");
+        assertThat(entity.isActive()).isFalse();
+    }
+
+    @Test
+    void updateQrcode_unknownPublicId_throwsNotFoundAndSavesNothing() {
+        when(qrcodeRepository.findByPublicId("nope")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> qrcodeService.updateQrcode("nope", new QrcodeUpdateRequest("T", true, null)))
+                .isInstanceOf(NotFoundException.class);
+
+        verify(qrcodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void updateQrcode_contentWithControlChar_isRejectedBeforeAnyWrite() {
+        assertThatThrownBy(() ->
+                qrcodeService.updateQrcode("abc", new QrcodeUpdateRequest("T", true, "bad\rcontent")))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(qrcodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void deleteQrcode_existingPlan_deletesIt() {
+        QrcodeEntity entity = qrcode("abc", true);
+        when(qrcodeRepository.findByPublicId("abc")).thenReturn(Optional.of(entity));
+
+        qrcodeService.deleteQrcode("abc");
+
+        verify(qrcodeRepository).delete(entity);
+    }
+
+    @Test
+    void deleteQrcode_unknownPublicId_throwsNotFoundAndDeletesNothing() {
+        when(qrcodeRepository.findByPublicId("nope")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> qrcodeService.deleteQrcode("nope")).isInstanceOf(NotFoundException.class);
+
+        verify(qrcodeRepository, never()).delete(any());
+    }
+
+    // -----------------------------------------------------------------------
+    // public id shape
+
+    @Test
+    void createQrcode_generatesAShortUrlSafePublicId() {
+        // The id ends up in a scannable URL and gets read aloud and typed by
+        // hand; a 36-character UUID made for a denser QR and a worse link.
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String publicId = qrcodeService.createQrcode(new QrcodeSaveRequest("My QR", null, 1L));
+
+        assertThat(publicId).hasSize(10).matches("[a-z0-9]+");
+    }
+
+    @Test
+    void createQrcode_retriesOnPublicIdCollision() {
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(true, false);
+        when(qrcodeRepository.save(any(QrcodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(qrcodeService.createQrcode(new QrcodeSaveRequest("My QR", null, 1L))).isNotBlank();
+
+        verify(qrcodeRepository, times(2)).existsByPublicId(anyString());
     }
 }

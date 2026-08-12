@@ -7,6 +7,7 @@ public record QrcodeResponse(
         String title,
         String content,
         boolean isActive,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
 }

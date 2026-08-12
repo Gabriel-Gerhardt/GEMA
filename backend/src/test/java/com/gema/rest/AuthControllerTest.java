@@ -10,7 +10,7 @@ import com.gema.external.rest.AuthController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,13 +32,13 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private UserService service;
 
     @Test
     void login_validCredentials_returns200WithToken() throws Exception {
         // Arrange
-        when(service.login(eq("alice"), eq("password1"))).thenReturn(new AuthResponse("jwt-token"));
+        when(service.login(eq("alice"), eq("password1"))).thenReturn(new AuthResponse("jwt-token", 1L, "alice", "Alice Souza"));
 
         Map<String, Object> body = Map.of("username", "alice", "password", "password1");
 

@@ -7,6 +7,7 @@ public record SectionResponse(
         String qrcodePublicId,
         String title,
         String content,
+        int sortOrder,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

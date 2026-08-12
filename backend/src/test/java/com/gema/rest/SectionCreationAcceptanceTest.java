@@ -19,13 +19,14 @@ import com.gema.external.rest.SectionController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,8 +35,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,16 +75,16 @@ class SectionCreationAcceptanceTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private QrcodeRepository qrcodeRepository;
 
-    @MockBean
+    @MockitoBean
     private SectionRepository sectionRepository;
 
-    @MockBean
+    @MockitoBean
     private UserRepository userRepository;
 
-    @MockBean
+    @MockitoBean
     private QrcodeImageService imageService;
 
     @Test
@@ -129,7 +132,7 @@ class SectionCreationAcceptanceTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(sectionBody)))
                 .andExpect(status().isCreated())
@@ -151,7 +154,7 @@ class SectionCreationAcceptanceTest {
                 "content", "Section content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(sectionBody)))
                 .andExpect(status().isNotFound());
@@ -200,17 +203,17 @@ class SectionCreationAcceptanceTest {
                 "content", "Original content"
         );
 
-        mockMvc.perform(post("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(post("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(sectionBody)))
                 .andExpect(status().isCreated());
 
         // -- GET reflects the created section --
-        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId))
-                .thenReturn(List.of(new SectionEntity(42L, savedQrcode.get(), "Original Title", "Original content",
+        when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(publicId))
+                .thenReturn(List.of(new SectionEntity(42L, savedQrcode.get(), "Original Title", "Original content", 0,
                         LocalDateTime.now(), LocalDateTime.now())));
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].title").value("Original Title"));
@@ -226,7 +229,7 @@ class SectionCreationAcceptanceTest {
                 "sections", List.of(Map.of("title", "Replaced Title", "content", "Replaced content"))
         );
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(replaceBody)))
                 .andExpect(status().isOk())
@@ -235,11 +238,11 @@ class SectionCreationAcceptanceTest {
                 .andExpect(jsonPath("$[0].content").value("Replaced content"));
 
         // -- GET after PUT reflects only the replacement --
-        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId))
-                .thenReturn(List.of(new SectionEntity(99L, savedQrcode.get(), "Replaced Title", "Replaced content",
+        when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(publicId))
+                .thenReturn(List.of(new SectionEntity(99L, savedQrcode.get(), "Replaced Title", "Replaced content", 0,
                         LocalDateTime.now(), LocalDateTime.now())));
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].title").value("Replaced Title"));
@@ -256,19 +259,20 @@ class SectionCreationAcceptanceTest {
         qrcode.setPublicId(publicId);
 
         when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
-        when(sectionRepository.findByQrcode_PublicIdOrderByIdAsc(publicId)).thenReturn(List.of());
+        when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(publicId)).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
     void replaceSections_calledTwiceWithSameMultiSectionPayload_realServiceWiringIsIdempotentInContent() throws Exception {
-        // Exercises the real service/@Transactional delete-then-save flow (not the
-        // mocked-service unit test) with more than one section, confirming saveAll
-        // handles multiple entries and that calling PUT twice yields the same
-        // content both times even though ids are not stable across calls.
+        // Exercises the real service/@Transactional replace flow (not the
+        // mocked-service unit test) with more than one section, confirming
+        // saveAll handles multiple entries and that calling PUT twice yields the
+        // same content AND the same ids — rows are updated in place rather than
+        // deleted and recreated.
         String publicId = "qr-public-id";
         QrcodeEntity qrcode = new QrcodeEntity();
         qrcode.setId(9L);
@@ -276,12 +280,22 @@ class SectionCreationAcceptanceTest {
 
         when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(qrcode));
 
+        // Stateful stub: a stub that always answered "no existing rows" could
+        // not tell in-place updates apart from delete-and-recreate, which is
+        // exactly what this test is about.
+        List<SectionEntity> store = new ArrayList<>();
         AtomicReference<Long> idSequence = new AtomicReference<>(500L);
+        when(sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(publicId))
+                .thenAnswer(inv -> List.copyOf(store));
         when(sectionRepository.saveAll(any())).thenAnswer(inv -> {
             List<SectionEntity> entities = inv.getArgument(0);
             for (SectionEntity e : entities) {
-                e.setId(idSequence.getAndUpdate(id -> id + 1));
+                if (e.getId() == null) {
+                    e.setId(idSequence.getAndUpdate(id -> id + 1));
+                }
             }
+            store.clear();
+            store.addAll(entities);
             return entities;
         });
 
@@ -292,7 +306,7 @@ class SectionCreationAcceptanceTest {
                 )
         );
 
-        MvcResult firstResult = mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        MvcResult firstResult = mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -301,7 +315,7 @@ class SectionCreationAcceptanceTest {
                 .andExpect(jsonPath("$[1].title").value("Title Two"))
                 .andReturn();
 
-        MvcResult secondResult = mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        MvcResult secondResult = mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -310,9 +324,9 @@ class SectionCreationAcceptanceTest {
                 .andExpect(jsonPath("$[1].title").value("Title Two"))
                 .andReturn();
 
-        // deleteByQrcode_PublicId ran once per PUT: the delete-and-recreate flow
-        // actually executed both times through the real service, not a stub.
-        verify(sectionRepository, times(2)).deleteByQrcode_PublicId(publicId);
+        // Rows are updated in place now, so a PUT that neither adds nor removes
+        // a section deletes nothing at all.
+        verify(sectionRepository, never()).deleteAll(anyList());
 
         JsonNode firstJson = objectMapper.readTree(firstResult.getResponse().getContentAsString());
         JsonNode secondJson = objectMapper.readTree(secondResult.getResponse().getContentAsString());
@@ -322,8 +336,10 @@ class SectionCreationAcceptanceTest {
         assertThat(firstJson.get(1).get("content").asText()).isEqualTo("Content Two");
         assertThat(secondJson.get(1).get("content").asText()).isEqualTo("Content Two");
 
-        // Ids are intentionally NOT stable across PUT calls (delete-and-recreate).
-        assertThat(firstJson.get(0).get("id").asLong()).isNotEqualTo(secondJson.get(0).get("id").asLong());
+        // Ids ARE stable across PUT calls: an edit updates the existing rows
+        // rather than deleting and recreating them, so a client holding a
+        // section id still has a valid handle afterwards.
+        assertThat(firstJson.get(0).get("id").asLong()).isEqualTo(secondJson.get(0).get("id").asLong());
     }
 
     @Test
@@ -331,7 +347,7 @@ class SectionCreationAcceptanceTest {
         String publicId = "does-not-exist";
         when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/q/{publicId}/sections", publicId))
+        mockMvc.perform(get("/api/qrcodes/{publicId}/sections", publicId))
                 .andExpect(status().isNotFound());
     }
 
@@ -344,7 +360,7 @@ class SectionCreationAcceptanceTest {
                 "sections", List.of(Map.of("title", "Title", "content", "Content"))
         );
 
-        mockMvc.perform(put("/api/q/{publicId}/sections", publicId)
+        mockMvc.perform(put("/api/qrcodes/{publicId}/sections", publicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound());

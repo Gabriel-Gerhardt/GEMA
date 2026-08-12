@@ -7,12 +7,13 @@ import com.gema.core.service.QrcodeImageService;
 import com.gema.core.service.QrcodeService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.exception.NotFoundException;
 import com.gema.external.rest.QrcodeController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -23,14 +24,18 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(QrcodeController.class)
 @Import({BeanConfig.class, GlobalExceptionHandler.class})
-@TestPropertySource(properties = "app.base-url=http://localhost:8080")
+@TestPropertySource(properties = "app.public-base-url=http://localhost:8081")
 class QrcodeControllerTest {
 
     @Autowired
@@ -39,10 +44,10 @@ class QrcodeControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private QrcodeService service;
 
-    @MockBean
+    @MockitoBean
     private QrcodeImageService imageService;
 
     // -----------------------------------------------------------------------
@@ -87,19 +92,18 @@ class QrcodeControllerTest {
     }
 
     @Test
-    void createQrcode_blankContent_returns400() throws Exception {
-        // Arrange
-        Map<String, Object> body = Map.of(
-                "title", "My QR Code",
-                "content", "",
-                "userId", 1L
-        );
+    void createQrcode_omittedContent_returns201() throws Exception {
+        // `content` predates the sections model and is optional now: a plan's
+        // content lives in its sections, so requiring it forced clients to
+        // invent a value purely to pass validation.
+        when(service.createQrcode(any())).thenReturn("abc-123-xyz");
 
-        // Act & Assert
+        String body = "{\"title\":\"My QR Code\",\"userId\":1}";
+
         mockMvc.perform(post("/api/qrcodes")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest());
+                        .content(body))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -129,9 +133,10 @@ class QrcodeControllerTest {
                 "My QR Code",
                 "https://example.com",
                 true,
+                createdAt,
                 createdAt
         );
-        when(service.getQrcodeByPublicId(eq(publicId))).thenReturn(response);
+        when(service.getPublicQrcodeByPublicId(eq(publicId))).thenReturn(response);
 
         // Act & Assert
         mockMvc.perform(get("/api/q/{publicId}", publicId))
@@ -147,7 +152,7 @@ class QrcodeControllerTest {
     void getQrcode_nonexistentPublicId_returns404() throws Exception {
         // Arrange
         String publicId = "nonexistent-id";
-        when(service.getQrcodeByPublicId(eq(publicId)))
+        when(service.getPublicQrcodeByPublicId(eq(publicId)))
                 .thenThrow(new NotFoundException("QR code not found"));
 
         // Act & Assert
@@ -165,9 +170,8 @@ class QrcodeControllerTest {
         String publicId = "abc-123-xyz";
         byte[] pngBytes = {(byte) 0x89, 'P', 'N', 'G'};
 
-        when(service.getQrcodeByPublicId(eq(publicId)))
-                .thenReturn(new QrcodeResponse(publicId, "title", "content", true, LocalDateTime.now()));
-        when(imageService.generatePng("http://localhost:8080/q/" + publicId)).thenReturn(pngBytes);
+        when(service.requireQrcode(eq(publicId))).thenReturn(new QrcodeEntity());
+        when(imageService.generatePng("http://localhost:8081/q/" + publicId)).thenReturn(pngBytes);
 
         // Act & Assert
         mockMvc.perform(get("/api/qrcodes/{publicId}/image", publicId))
@@ -180,7 +184,7 @@ class QrcodeControllerTest {
     void getQrcodeImage_nonexistentPublicId_returns404() throws Exception {
         // Arrange
         String publicId = "nonexistent-id";
-        when(service.getQrcodeByPublicId(eq(publicId)))
+        when(service.requireQrcode(eq(publicId)))
                 .thenThrow(new NotFoundException("QR code not found"));
 
         // Act & Assert
@@ -194,9 +198,8 @@ class QrcodeControllerTest {
         String publicId = "abc-123-xyz";
         byte[] pngBytes = {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
 
-        when(service.getQrcodeByPublicId(eq(publicId)))
-                .thenReturn(new QrcodeResponse(publicId, "title", "content", true, LocalDateTime.now()));
-        when(imageService.generatePng("http://localhost:8080/q/" + publicId)).thenReturn(pngBytes);
+        when(service.requireQrcode(eq(publicId))).thenReturn(new QrcodeEntity());
+        when(imageService.generatePng("http://localhost:8081/q/" + publicId)).thenReturn(pngBytes);
 
         // Act & Assert: first call
         mockMvc.perform(get("/api/qrcodes/{publicId}/image", publicId))
@@ -215,13 +218,74 @@ class QrcodeControllerTest {
         String publicId = "inactive-id";
         byte[] pngBytes = {(byte) 0x89, 'P', 'N', 'G'};
 
-        when(service.getQrcodeByPublicId(eq(publicId)))
-                .thenReturn(new QrcodeResponse(publicId, "title", "content", false, LocalDateTime.now()));
-        when(imageService.generatePng("http://localhost:8080/q/" + publicId)).thenReturn(pngBytes);
+        when(service.requireQrcode(eq(publicId))).thenReturn(new QrcodeEntity());
+        when(imageService.generatePng("http://localhost:8081/q/" + publicId)).thenReturn(pngBytes);
 
         // Act & Assert
         mockMvc.perform(get("/api/qrcodes/{publicId}/image", publicId))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(pngBytes));
+    }
+    // -----------------------------------------------------------------------
+    // Owner routes: PUT / DELETE /api/qrcodes/{publicId}
+    // -----------------------------------------------------------------------
+
+    @Test
+    void updateQrcode_validRequest_returns200WithUpdatedBody() throws Exception {
+        String publicId = "abc-123-xyz";
+        LocalDateTime now = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
+
+        when(service.updateQrcode(eq(publicId), any()))
+                .thenReturn(new QrcodeResponse(publicId, "Renamed", null, false, now, now));
+
+        Map<String, Object> body = Map.of("title", "Renamed", "isActive", false);
+
+        mockMvc.perform(put("/api/qrcodes/{publicId}", publicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Renamed"))
+                .andExpect(jsonPath("$.isActive").value(false));
+    }
+
+    @Test
+    void updateQrcode_missingIsActive_returns400() throws Exception {
+        String body = "{\"title\":\"Renamed\"}";
+
+        mockMvc.perform(put("/api/qrcodes/{publicId}", "abc-123-xyz")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deleteQrcode_existingPublicId_returns204() throws Exception {
+        mockMvc.perform(delete("/api/qrcodes/{publicId}", "abc-123-xyz"))
+                .andExpect(status().isNoContent());
+
+        verify(service).deleteQrcode("abc-123-xyz");
+    }
+
+    @Test
+    void deleteQrcode_nonexistentPublicId_returns404() throws Exception {
+        doThrow(new NotFoundException("QR code not found")).when(service).deleteQrcode("nonexistent-id");
+
+        mockMvc.perform(delete("/api/qrcodes/{publicId}", "nonexistent-id"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getQrcodeImage_encodesTheFrontendGuideUrl_notAnApiRoute() throws Exception {
+        // Regression: the encoded URL used to be `{backend}/q/{id}`, which is not
+        // a route that exists (the JSON endpoint is `/api/q/{id}`), so every
+        // scanned code resolved to a 404. It must point at the frontend page.
+        String publicId = "abc-123-xyz";
+        when(service.requireQrcode(eq(publicId))).thenReturn(new QrcodeEntity());
+        when(imageService.generatePng(any())).thenReturn(new byte[]{1});
+
+        mockMvc.perform(get("/api/qrcodes/{publicId}/image", publicId))
+                .andExpect(status().isOk());
+
+        verify(imageService).generatePng("http://localhost:8081/q/" + publicId);
     }
 }

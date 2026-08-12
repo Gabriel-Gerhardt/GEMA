@@ -31,12 +31,36 @@ const colors = {
   white: '#ffffff',
 };
 
+// The signature shape is an asymmetric corner: top-left and bottom-right
+// rounded, top-right and bottom-left sharp. Which corners is what makes it read
+// as intentional, so the pairs travel together — see DESIGN.md "Radius".
 const radii = {
-  card: 24, // paired with cardAlt on the opposite corners for the signature look
+  card: 24,
   cardAlt: 8,
+  cardMd: 20,
+  cardMdAlt: 6,
+  cardSm: 16,
+  cardSmAlt: 5,
+  tile: 22,
+  tileAlt: 8,
   button: 14,
-  buttonSm: 16,
+  // DESIGN.md's compact button (the emergency panel's "Ligar agora") is 13px.
+  buttonSm: 13,
+  input: 12,
+  inputSm: 9,
+  qr: 16,
   pill: 999,
+};
+
+/** Card shadow per DESIGN.md: tinted green rather than neutral black, barely-there lift. */
+const shadow = {
+  card: {
+    shadowColor: colors.green.deep,
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
 };
 
 const fontFamily = {
@@ -47,4 +71,4 @@ const fontFamily = {
   figtreeExtrabold: ['Figtree_800ExtraBold'],
 };
 
-module.exports = { colors, radii, fontFamily };
+module.exports = { colors, radii, shadow, fontFamily };
