@@ -7,14 +7,35 @@ import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
+import { ErrorState, LoadingState } from '../components/ScreenState';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { usePlans } from '../state/PlansContext';
+import { API_BASE_URL } from '../api/config';
 import type { HomeStackParamList } from '../navigation/types';
 
 export function PlanCreatedScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, 'PlanCreated'>>();
-  const { getPlan } = usePlans();
-  const plan = getPlan(route.params.planId);
+  const { fetchPlan } = usePlans();
+  const planId = route.params.planId;
+
+  const { data: plan, isLoading, error, reload } = useAsyncResource(() => fetchPlan(planId), [planId]);
+
+  if (isLoading && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <LoadingState />
+      </SafeAreaView>
+    );
+  }
+
+  if (error && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <ErrorState message={error} onRetry={reload} />
+      </SafeAreaView>
+    );
+  }
 
   if (!plan) {
     return (
@@ -30,7 +51,10 @@ export function PlanCreatedScreen() {
     );
   }
 
-  const link = `gema.app/q/${plan.publicId}`;
+  // The shareable address is the guide's, which the app itself serves; the API
+  // base is only used here as the sensible stand-in until the app has a
+  // deployed public origin of its own.
+  const link = `${API_BASE_URL}/q/${plan.publicId}`;
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
