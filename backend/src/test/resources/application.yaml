@@ -33,3 +33,5 @@ app:
   jwt:
     secret: test-only-secret-key-that-is-long-enough-for-hmac-sha-512-signing-abcdefghijklmnop
     expiration-ms: 3600000
+  password-reset:
+    token-ttl-minutes: 30

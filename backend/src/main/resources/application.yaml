@@ -50,3 +50,6 @@ app:
     # signs in again.
     expiration-ms: ${JWT_EXPIRATION_MS:604800000}
 
+  password-reset:
+    # Short by design: this token is a bearer credential sitting in an inbox.
+    token-ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:30}
