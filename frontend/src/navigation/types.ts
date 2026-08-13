@@ -3,6 +3,9 @@ export type PublicStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   CreateAccount: undefined;
+  ForgotPassword: undefined;
+  /** Reached from the emailed link; the token rides in the query string. */
+  ResetPassword: { token?: string } | undefined;
   EmergencyGuide: { publicId: string };
   NotFound: undefined;
 };
