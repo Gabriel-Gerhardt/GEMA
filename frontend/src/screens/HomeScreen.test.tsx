@@ -2,12 +2,14 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import { useNavigation } from '@react-navigation/native';
 import { HomeScreen } from './HomeScreen';
 import { usePlans } from '../state/PlansContext';
+import { useAuth } from '../state/AuthContext';
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: jest.fn(),
 }));
 jest.mock('../state/PlansContext');
+jest.mock('../state/AuthContext');
 
 const PLANS = [
   { id: 'p1', publicId: 'abc123', title: 'Guia do Lucas', active: true, createdAt: '2026-06-12', sections: [] },
@@ -20,6 +22,7 @@ describe('HomeScreen', () => {
     navigate.mockClear();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
     (usePlans as jest.Mock).mockReturnValue({ plans: PLANS });
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 1, username: 'eduarda.souza@exemplo.com', name: 'Eduarda Souza', role: 'USER', planCount: 3 } });
   });
 
   it('greets the user and lists recent activity', async () => {

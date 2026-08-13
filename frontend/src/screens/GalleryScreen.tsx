@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
+import { ErrorState, LoadingState } from '../components/ScreenState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
 import { StatusDot } from '../components/StatusDot';
 import { usePlans } from '../state/PlansContext';
@@ -11,7 +12,7 @@ import type { GalleryStackParamList } from '../navigation/types';
 
 export function GalleryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<GalleryStackParamList>>();
-  const { plans } = usePlans();
+  const { plans, isLoading, error, reload } = usePlans();
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
@@ -21,7 +22,15 @@ export function GalleryScreen() {
         </Text>
         <Text className="mt-3 font-figtreeExtrabold text-[28px] tracking-[-0.02em] text-green-deep">Galeria</Text>
 
-        {plans.length === 0 ? (
+        {isLoading && plans.length === 0 ? (
+          <View className="py-12">
+            <LoadingState label="Carregando seus planos…" />
+          </View>
+        ) : error && plans.length === 0 ? (
+          <View className="py-8">
+            <ErrorState message={error} onRetry={() => void reload()} />
+          </View>
+        ) : plans.length === 0 ? (
           // Deleting every plan used to leave the screen blank below the title.
           <EmptyState
             className="my-8"
