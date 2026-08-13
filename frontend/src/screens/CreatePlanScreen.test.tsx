@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { CreatePlanScreen } from './CreatePlanScreen';
@@ -17,7 +17,7 @@ describe('CreatePlanScreen', () => {
   beforeEach(() => {
     navigate.mockClear();
     createPlan.mockClear();
-    createPlan.mockReturnValue({ id: 'new-plan-id', publicId: 'xyz999' });
+    createPlan.mockResolvedValue({ id: 'new-plan-id', publicId: 'xyz999' });
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
     (usePlans as jest.Mock).mockReturnValue({ createPlan });
   });
@@ -54,7 +54,9 @@ describe('CreatePlanScreen', () => {
     await render(<CreatePlanScreen />);
     await user.type(screen.getByPlaceholderText('Guia do Lucas'), 'Guia da Ana');
     await user.press(screen.getByRole('button', { name: 'Criar plano' }));
-    expect(createPlan).toHaveBeenCalledWith('Guia da Ana', expect.any(Array));
+    await waitFor(() => expect(createPlan).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Guia da Ana', sections: expect.any(Array) }),
+    ));
     expect(navigate).toHaveBeenCalledWith('PlanCreated', { planId: 'new-plan-id' });
   });
 });

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
+import { FormError } from '../components/ScreenState';
 import { SectionEditorItem } from '../components/SectionEditorItem';
 import { usePlans } from '../state/PlansContext';
 import { colors } from '../theme/tokens';
@@ -29,6 +30,8 @@ export function CreatePlanScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { createPlan } = usePlans();
   const [title, setTitle] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sections, setSections] = useState<DraftSection[]>([
     { key: newDraftKey(), title: '', content: '' },
     { key: newDraftKey(), title: '', content: '' },
@@ -55,13 +58,31 @@ export function CreatePlanScreen() {
     setSections((prev) => [...prev, { key: newDraftKey(), title: '', content: '' }]);
   }
 
-  function handleSubmit() {
-    if (!title.trim()) return;
-    const created = createPlan(
-      title,
-      sections.map((s) => ({ title: s.title, content: s.content })),
-    );
-    navigation.navigate('PlanCreated', { planId: created.id });
+  async function handleSubmit() {
+    if (!title.trim()) {
+      setError('Dê um título ao plano.');
+      return;
+    }
+    // Empty blocks start on screen by design, so drop the untouched ones rather
+    // than failing validation on rows the person never filled in.
+    const filled = sections.filter((s) => s.title.trim() || s.content.trim());
+    if (filled.some((s) => !s.title.trim() || !s.content.trim())) {
+      setError('Preencha o título e o conteúdo de cada seção, ou deixe-a em branco.');
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const created = await createPlan({
+        title: title.trim(),
+        sections: filled.map((s) => ({ title: s.title.trim(), content: s.content.trim() })),
+      });
+      navigation.navigate('PlanCreated', { planId: created.id });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível criar o plano.');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -118,8 +139,11 @@ export function CreatePlanScreen() {
           </Pressable>
         </View>
 
-        <Button onPress={handleSubmit} className="mt-4 w-full">
-          Criar plano
+        <View className="mt-4">
+          <FormError message={error} />
+        </View>
+        <Button onPress={handleSubmit} disabled={isSubmitting} className="mt-4 w-full">
+          {isSubmitting ? 'Criando…' : 'Criar plano'}
         </Button>
       </ScrollView>
     </SafeAreaView>
