@@ -5,6 +5,7 @@ import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.core.service.JwtService;
+import com.gema.core.service.PasswordResetService;
 import com.gema.external.config.GlobalExceptionHandler;
 import com.gema.external.config.JwtAuthenticationFilter;
 import com.gema.external.config.SecurityConfig;
@@ -37,6 +38,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private JwtService jwtService;
+
+    @MockitoBean
+    private PasswordResetService passwordResetService;
 
     @MockitoBean
     private UserService service;

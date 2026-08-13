@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
+import com.gema.core.service.PasswordResetService;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
@@ -71,6 +72,9 @@ class AuthenticationFlowAcceptanceTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    private PasswordResetService passwordResetService;
 
     @MockitoBean
     private UserRepository userRepository;
