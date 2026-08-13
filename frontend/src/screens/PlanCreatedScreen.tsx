@@ -5,18 +5,56 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
+import { ErrorState, LoadingState } from '../components/ScreenState';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { usePlans } from '../state/PlansContext';
+import { API_BASE_URL } from '../api/config';
 import type { HomeStackParamList } from '../navigation/types';
 
 export function PlanCreatedScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, 'PlanCreated'>>();
-  const { getPlan } = usePlans();
-  const plan = getPlan(route.params.planId);
+  const { fetchPlan } = usePlans();
+  const planId = route.params.planId;
 
-  if (!plan) return null;
-  const link = `gema.app/q/${plan.publicId}`;
+  const { data: plan, isLoading, error, reload } = useAsyncResource(() => fetchPlan(planId), [planId]);
+
+  if (isLoading && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <LoadingState />
+      </SafeAreaView>
+    );
+  }
+
+  if (error && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <ErrorState message={error} onRetry={reload} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+        <EmptyState
+          className="flex-1"
+          title="Plano não encontrado"
+          message="Não conseguimos carregar o plano recém-criado."
+          actionLabel="Voltar"
+          onAction={() => navigation.goBack()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // The shareable address is the guide's, which the app itself serves; the API
+  // base is only used here as the sensible stand-in until the app has a
+  // deployed public origin of its own.
+  const link = `${API_BASE_URL}/q/${plan.publicId}`;
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
@@ -32,7 +70,7 @@ export function PlanCreatedScreen() {
           <View className="mt-4.5">
             <QrPlaceholder size={150} />
           </View>
-          <View className="mt-4 w-full rounded-xl bg-mint-surface px-3 py-2.5">
+          <View className="mt-4 w-full rounded-input bg-mint-surface px-3 py-2.5">
             <Text
               role="link"
               aria-label={link}

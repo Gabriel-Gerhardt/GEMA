@@ -4,13 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
+import com.gema.core.service.JwtService;
+import com.gema.core.service.PasswordResetService;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.rest.AuthController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AuthController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class})
 class AuthControllerTest {
 
     @Autowired
@@ -32,13 +36,19 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private PasswordResetService passwordResetService;
+
+    @MockitoBean
     private UserService service;
 
     @Test
     void login_validCredentials_returns200WithToken() throws Exception {
         // Arrange
-        when(service.login(eq("alice"), eq("password1"))).thenReturn(new AuthResponse("jwt-token"));
+        when(service.login(eq("alice"), eq("password1"))).thenReturn(new AuthResponse("jwt-token", 1L, "alice", "Alice Souza"));
 
         Map<String, Object> body = Map.of("username", "alice", "password", "password1");
 

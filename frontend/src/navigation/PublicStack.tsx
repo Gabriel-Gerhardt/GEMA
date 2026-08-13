@@ -3,6 +3,8 @@ import { LandingScreen } from '../screens/LandingScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { CreateAccountScreen } from '../screens/CreateAccountScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { EmergencyGuideScreen } from '../screens/EmergencyGuideScreen';
 import { NotFoundScreen } from '../screens/NotFoundScreen';
 import type { PublicStackParamList } from './types';
@@ -19,6 +21,8 @@ export function PublicStack() {
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="EmergencyGuide" component={EmergencyGuideScreen} />
       <Stack.Screen name="NotFound" component={NotFoundScreen} />
     </Stack.Navigator>

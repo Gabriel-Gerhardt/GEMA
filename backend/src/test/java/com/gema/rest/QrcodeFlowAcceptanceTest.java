@@ -5,10 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.core.service.QrcodeImageService;
 import com.gema.core.service.QrcodeService;
 import com.gema.external.config.BeanConfig;
+import com.gema.core.service.JwtService;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.repository.QrcodeRepository;
+import com.gema.external.repository.SectionRepository;
 import com.gema.external.repository.UserRepository;
 import com.gema.external.rest.QrcodeController;
 import com.google.zxing.BinaryBitmap;
@@ -19,10 +23,11 @@ import com.google.zxing.common.HybridBinarizer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -63,8 +68,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * "integration test for the full create -> resolve flow" criterion.
  */
 @WebMvcTest(QrcodeController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class, QrcodeService.class, QrcodeImageService.class})
-@TestPropertySource(properties = "app.base-url=http://localhost:8080")
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class, QrcodeService.class, QrcodeImageService.class})
+@TestPropertySource(properties = "app.public-base-url=http://localhost:8081")
 class QrcodeFlowAcceptanceTest {
 
     @Autowired
@@ -73,19 +78,26 @@ class QrcodeFlowAcceptanceTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
     private QrcodeRepository qrcodeRepository;
 
-    @MockBean
+    @MockitoBean
+    private SectionRepository sectionRepository;
+
+    @MockitoBean
     private UserRepository userRepository;
 
     @Test
+    @WithMockUser(username = "alice")
     void createThenResolve_fullJourney_returnsConsistentStructureAndFields() throws Exception {
         // -- Arrange: a real user the create call will look up --
         UserEntity user = new UserEntity();
         user.setId(1L);
         user.setUsername("alice");
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
 
         AtomicReference<QrcodeEntity> savedEntity = new AtomicReference<>();
@@ -97,8 +109,7 @@ class QrcodeFlowAcceptanceTest {
 
         Map<String, Object> createBody = Map.of(
                 "title", "My QR Code",
-                "content", "https://example.com/landing",
-                "userId", 1L
+                "content", "https://example.com/landing"
         );
 
         // -- Act: create --
@@ -137,11 +148,12 @@ class QrcodeFlowAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void createThenFetchImage_fullJourney_producesScannableImageEncodingTheResolveUrl() throws Exception {
         // -- Arrange --
         UserEntity user = new UserEntity();
         user.setId(2L);
-        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         when(qrcodeRepository.existsByPublicId(anyString())).thenReturn(false);
 
         AtomicReference<QrcodeEntity> savedEntity = new AtomicReference<>();
@@ -153,8 +165,7 @@ class QrcodeFlowAcceptanceTest {
 
         Map<String, Object> createBody = Map.of(
                 "title", "Scan me",
-                "content", "https://example.com/scan-target",
-                "userId", 2L
+                "content", "https://example.com/scan-target"
         );
 
         MvcResult createResult = mockMvc.perform(post("/api/qrcodes")
@@ -164,7 +175,7 @@ class QrcodeFlowAcceptanceTest {
                 .andReturn();
         String publicId = readPublicId(createResult);
 
-        when(qrcodeRepository.findByPublicId(publicId)).thenReturn(Optional.of(savedEntity.get()));
+        when(qrcodeRepository.findByPublicIdAndUser_Username(publicId, "alice")).thenReturn(Optional.of(savedEntity.get()));
 
         // -- Act: fetch the real, zxing-generated image --
         MvcResult imageResult = mockMvc.perform(get("/api/qrcodes/{publicId}/image", publicId))
@@ -178,15 +189,20 @@ class QrcodeFlowAcceptanceTest {
 
         // -- Assert: the PNG really is a scannable barcode for this qrcode's resolve URL --
         String decoded = decode(png);
-        assertThat(decoded).isEqualTo("http://localhost:8080/q/" + publicId);
+        // The encoded target is the FRONTEND guide page. It used to be
+        // "{backend}/q/{id}", a route that does not exist — the JSON endpoint is
+        // "/api/q/{id}" — so every scanned code landed on a 404.
+        assertThat(decoded).isEqualTo("http://localhost:8081/q/" + publicId);
     }
 
     @Test
-    void create_blankContent_realSanitizerRejects_repositoryNeverTouched() throws Exception {
+    @WithMockUser(username = "alice")
+    void create_contentWithControlChar_realSanitizerRejects_repositoryNeverTouched() throws Exception {
+        // Blank content is valid now (the field is optional), so the sanitizer's
+        // remaining job — rejecting control characters — is what this covers.
         Map<String, Object> createBody = Map.of(
                 "title", "My QR Code",
-                "content", "   ",
-                "userId", 1L
+                "content", "line1\rline2"
         );
 
         mockMvc.perform(post("/api/qrcodes")
@@ -199,6 +215,7 @@ class QrcodeFlowAcceptanceTest {
     }
 
     @Test
+    @WithMockUser(username = "alice")
     void resolve_unknownPublicId_realServiceReturns404() throws Exception {
         when(qrcodeRepository.findByPublicId(eq("does-not-exist"))).thenReturn(Optional.empty());
 

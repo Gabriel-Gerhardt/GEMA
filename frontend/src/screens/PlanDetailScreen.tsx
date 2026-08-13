@@ -1,21 +1,58 @@
+import { useCallback } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { QrPlaceholder } from '../components/QrPlaceholder';
+import { ErrorState, LoadingState } from '../components/ScreenState';
 import { SectionReadItem } from '../components/SectionReadItem';
 import { StatusDot } from '../components/StatusDot';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { usePlans } from '../state/PlansContext';
 import type { GalleryStackParamList } from '../navigation/types';
 
 export function PlanDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<GalleryStackParamList>>();
   const route = useRoute<RouteProp<GalleryStackParamList, 'PlanDetail'>>();
-  const { getPlan } = usePlans();
-  const plan = getPlan(route.params.planId);
+  const { fetchPlan } = usePlans();
+  const planId = route.params.planId;
 
-  if (!plan) return null;
+  const { data: plan, isLoading, error, reload } = useAsyncResource(() => fetchPlan(planId), [planId]);
+
+  // Coming back from Edit must show the edit, not the copy fetched before it.
+  useFocusEffect(useCallback(() => reload(), [reload]));
+
+  if (isLoading && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <LoadingState label="Carregando plano…" />
+      </SafeAreaView>
+    );
+  }
+
+  if (error && !plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <ErrorState message={error} onRetry={reload} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <EmptyState
+          className="flex-1"
+          title="Plano não encontrado"
+          message="Este plano foi excluído ou não existe mais."
+          actionLabel="Voltar à galeria"
+          onAction={() => navigation.navigate('GalleryScreen')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
@@ -35,11 +72,11 @@ export function PlanDetailScreen() {
           Criado {plan.createdAt} ·{' '}
           <Text
             role="link"
-            aria-label={`gema.app/q/${plan.publicId}`}
+            aria-label={`Ver guia público ${plan.publicId}`}
             onPress={() => navigation.navigate('EmergencyGuide', { publicId: plan.publicId })}
             className="underline"
           >
-            gema.app/q/{plan.publicId}
+            /q/{plan.publicId}
           </Text>
         </Text>
 

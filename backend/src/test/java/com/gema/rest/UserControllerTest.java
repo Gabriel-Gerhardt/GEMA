@@ -3,33 +3,35 @@ package com.gema.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.adapters.dto.response.UserDetailsResponse;
-import com.gema.adapters.dto.response.UserQrcodeResponse;
 import com.gema.core.model.Role;
+import com.gema.core.service.JwtService;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.exception.ConflictException;
-import com.gema.external.exception.NotFoundException;
 import com.gema.external.rest.UserController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UserController.class)
-@Import({BeanConfig.class, GlobalExceptionHandler.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class})
 class UserControllerTest {
 
     @Autowired
@@ -38,35 +40,39 @@ class UserControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private UserService service;
 
+    @MockitoBean
+    private JwtService jwtService;
+
+    // -----------------------------------------------------------------------
+    // POST /api/users — registration, reachable without a token
+
     @Test
-    void createUser_validRequest_returns201WithToken() throws Exception {
-        // Arrange
-        when(service.createUser(eq("alice"), eq("password1"), eq(Role.USER)))
-                .thenReturn(new AuthResponse("jwt-token"));
+    void createUser_validRequest_returns201WithTokenAndIdentity() throws Exception {
+        when(service.createUser(eq("alice"), eq("password1"), any()))
+                .thenReturn(new AuthResponse("jwt-token", 1L, "alice", "Alice Souza"));
 
-        Map<String, Object> body = Map.of("username", "alice", "password", "password1", "role", "USER");
+        Map<String, Object> body = Map.of("username", "alice", "password", "password1", "name", "Alice Souza");
 
-        // Act & Assert
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.token").value("jwt-token"));
+                .andExpect(jsonPath("$.token").value("jwt-token"))
+                // The client has no other way to learn its own id.
+                .andExpect(jsonPath("$.userId").value(1))
+                .andExpect(jsonPath("$.name").value("Alice Souza"));
     }
 
     @Test
     void createUser_duplicateUsername_returns409() throws Exception {
-        // Arrange
-        when(service.createUser(eq("alice"), eq("password1"), eq(Role.USER)))
+        when(service.createUser(eq("alice"), eq("password1"), any()))
                 .thenThrow(new ConflictException("Username already exists"));
 
-        Map<String, Object> body = Map.of("username", "alice", "password", "password1", "role", "USER");
+        Map<String, Object> body = Map.of("username", "alice", "password", "password1");
 
-        // Act & Assert
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -75,10 +81,8 @@ class UserControllerTest {
 
     @Test
     void createUser_blankUsername_returns400() throws Exception {
-        // Arrange
-        Map<String, Object> body = Map.of("username", "", "password", "password1", "role", "USER");
+        Map<String, Object> body = Map.of("username", "", "password", "password1");
 
-        // Act & Assert
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -86,53 +90,123 @@ class UserControllerTest {
     }
 
     @Test
-    void createUser_missingRole_returns400() throws Exception {
-        // Arrange
-        String body = "{\"username\":\"alice\",\"password\":\"password1\"}";
+    void createUser_clientSuppliedRoleIsIgnored() throws Exception {
+        // `role` used to be a required request field, so a client could hand
+        // itself an ADMIN account. The field is unmapped now and simply dropped.
+        when(service.createUser(eq("attacker"), eq("password1"), any()))
+                .thenReturn(new AuthResponse("jwt-token", 2L, "attacker", null));
 
-        // Act & Assert
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .content("{\"username\":\"attacker\",\"password\":\"password1\",\"role\":\"ADMIN\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createUser_emailAsUsername_isAccepted() throws Exception {
+        // The design's Login/Create Account screens use an email address, and
+        // the old 20-character ceiling rejected ordinary ones.
+        String email = "eduarda.souza@exemplo.com";
+        when(service.createUser(eq(email), eq("password1"), any()))
+                .thenReturn(new AuthResponse("jwt-token", 3L, email, null));
+
+        Map<String, Object> body = Map.of("username", email, "password", "password1");
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createUser_passwordShorterThanEightCharacters_returns400() throws Exception {
+        // The Create Account screen promises "pelo menos 8 caracteres".
+        Map<String, Object> body = Map.of("username", "alice", "password", "short7x");
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void getUser_existingId_returns200WithUserAndQrcodes() throws Exception {
-        // Arrange
-        UserDetailsResponse response = new UserDetailsResponse(
-                "alice",
-                Role.USER,
-                List.of(new UserQrcodeResponse("public-id-1", "Emergency card", true, "content-1"))
-        );
-        when(service.getUserDetails(1L)).thenReturn(response);
+    void createUser_longPassphrase_isAccepted() throws Exception {
+        // The old 20-character maximum penalised exactly the strongest inputs.
+        String passphrase = "uma frase longa e bem mais segura que oito caracteres";
+        when(service.createUser(eq("alice"), eq(passphrase), any()))
+                .thenReturn(new AuthResponse("jwt-token", 4L, "alice", null));
 
-        // Act & Assert
-        mockMvc.perform(get("/api/users/1"))
+        Map<String, Object> body = Map.of("username", "alice", "password", passphrase);
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+    }
+
+    // -----------------------------------------------------------------------
+    // /api/users/me
+
+    @Test
+    @WithMockUser(username = "alice")
+    void getCurrentUser_returnsTheAuthenticatedAccount() throws Exception {
+        when(service.getCurrentUser("alice"))
+                .thenReturn(new UserDetailsResponse(1L, "alice", "Alice Souza", Role.USER, 3));
+
+        mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.username").value("alice"))
-                .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.qrcodes[0].publicId").value("public-id-1"))
-                .andExpect(jsonPath("$.qrcodes[0].title").value("Emergency card"))
-                .andExpect(jsonPath("$.qrcodes[0].isActive").value(true))
-                .andExpect(jsonPath("$.qrcodes[0].content").value("content-1"));
+                .andExpect(jsonPath("$.name").value("Alice Souza"))
+                // Profile shows "Planos criados" as a count, not a list.
+                .andExpect(jsonPath("$.planCount").value(3));
     }
 
     @Test
-    void getUser_unknownId_returns404() throws Exception {
-        // Arrange
-        when(service.getUserDetails(99L)).thenThrow(new NotFoundException("User not found"));
+    void getCurrentUser_withoutAToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
 
-        // Act & Assert
-        mockMvc.perform(get("/api/users/99"))
+    @Test
+    void accountsAreNotAddressableById() throws Exception {
+        // The old GET /api/users/{id} accepted any id, so sequential ids exposed
+        // every account and its plans. The route is gone, not merely guarded.
+        mockMvc.perform(get("/api/users/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "alice")
+    void accountsAreNotAddressableById_evenWhenAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/users/1"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void getUser_nonNumericId_returns400() throws Exception {
-        // Act & Assert
-        mockMvc.perform(get("/api/users/not-a-number"))
-                .andExpect(status().isBadRequest());
+    @WithMockUser(username = "alice")
+    void updateCurrentUser_changesTheDisplayName() throws Exception {
+        when(service.updateCurrentUser("alice", "Duda"))
+                .thenReturn(new UserDetailsResponse(1L, "alice", "Duda", Role.USER, 3));
+
+        mockMvc.perform(put("/api/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Duda\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Duda"));
+    }
+
+    @Test
+    @WithMockUser(username = "alice")
+    void deleteCurrentUser_returns204() throws Exception {
+        mockMvc.perform(delete("/api/users/me"))
+                .andExpect(status().isNoContent());
+
+        verify(service).deleteCurrentUser("alice");
+    }
+
+    @Test
+    void deleteCurrentUser_withoutAToken_returns401() throws Exception {
+        mockMvc.perform(delete("/api/users/me"))
+                .andExpect(status().isUnauthorized());
     }
 }

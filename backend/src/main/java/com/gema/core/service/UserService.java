@@ -2,20 +2,17 @@ package com.gema.core.service;
 
 import com.gema.adapters.dto.response.AuthResponse;
 import com.gema.adapters.dto.response.UserDetailsResponse;
-import com.gema.adapters.dto.response.UserQrcodeResponse;
 import com.gema.core.model.Role;
-import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.exception.ConflictException;
-import com.gema.external.exception.NotFoundException;
 import com.gema.external.exception.UnauthorizedException;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -43,17 +40,24 @@ public class UserService {
         this.jwtService = jwtService;
     }
 
-    public AuthResponse createUser(String username, String password, Role role) {
+    /**
+     * Registers a new account.
+     *
+     * <p>The role is fixed to {@link Role#USER} rather than taken from the
+     * request: it used to be a caller-supplied field, which meant anyone could
+     * register themselves as an {@code ADMIN} simply by asking.
+     */
+    @Transactional
+    public AuthResponse createUser(String username, String password, String name) {
         if (userRepository.existsByUsername(username)) {
             throw new ConflictException("Username already exists");
         }
         String passwordHash = passwordEncoder.encode(password);
-        LocalDateTime createdAt  = LocalDateTime.now();
-        UserEntity entity = new UserEntity(username, passwordHash, role, createdAt);
-        userRepository.save(entity);
+        UserEntity entity = new UserEntity(username, passwordHash, Role.USER, name, LocalDateTime.now());
+        UserEntity saved = userRepository.save(entity);
 
-        String token = jwtService.generateToken(username, role);
-        return new AuthResponse(token);
+        String token = jwtService.generateToken(saved.getUsername(), saved.getRole());
+        return new AuthResponse(token, saved.getId(), saved.getUsername(), saved.getName());
     }
 
     public AuthResponse login(String username, String password) {
@@ -65,27 +69,57 @@ public class UserService {
 
         UserEntity user = userOptional.get();
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
-        return new AuthResponse(token);
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getName());
     }
 
-    public UserDetailsResponse getUserDetails(Long id) {
-        UserEntity user = userRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-
-        List<UserQrcodeResponse> qrcodes = qrcodeRepository.findByUser_Id(id).stream()
-                .map(this::toUserQrcodeResponse)
-                .toList();
-
-        return new UserDetailsResponse(user.getUsername(), user.getRole(), qrcodes);
+    /**
+     * Reads the authenticated account.
+     *
+     * <p>This replaces the previous lookup by path id, which was reachable for
+     * any id and so exposed every account — and every account's plans — to
+     * anyone who could count. There is no longer a way to address an account
+     * other than the caller's own.
+     */
+    public UserDetailsResponse getCurrentUser(String username) {
+        UserEntity user = requireUser(username);
+        return toDetails(user);
     }
 
-    private UserQrcodeResponse toUserQrcodeResponse(QrcodeEntity entity) {
-        return new UserQrcodeResponse(
-                entity.getPublicId(),
-                entity.getTitle(),
-                entity.isActive(),
-                entity.getContent()
-        );
+    @Transactional
+    public UserDetailsResponse updateCurrentUser(String username, String name) {
+        UserEntity user = requireUser(username);
+        user.setName(name);
+        return toDetails(userRepository.save(user));
+    }
+
+    /**
+     * Deletes the authenticated account. The {@code qrcodes.user_id} foreign key
+     * cascades on delete, so the caller's plans (and their sections, which
+     * cascade in turn) go with it — which is what "Excluir conta" has to mean
+     * for a product holding this kind of personal information.
+     */
+    @Transactional
+    public void deleteCurrentUser(String username) {
+        userRepository.delete(requireUser(username));
+    }
+
+    private UserDetailsResponse toDetails(UserEntity user) {
+        return new UserDetailsResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getName(),
+                user.getRole(),
+                qrcodeRepository.countByUser_Username(user.getUsername()));
+    }
+
+    /**
+     * The subject came from a verified token, so an account that no longer
+     * exists means the token outlived it — a credential problem (401), not a
+     * missing resource (404).
+     */
+    private UserEntity requireUser(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
     }
 
     /**

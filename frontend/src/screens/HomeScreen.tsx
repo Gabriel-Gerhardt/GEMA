@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SunflowerMark } from '../components/SunflowerMark';
 import { Card } from '../components/Card';
 import { usePlans } from '../state/PlansContext';
-import { MOCK_PROFILE } from '../mocks/profile';
+import { useAuth } from '../state/AuthContext';
 import type { HomeStackParamList } from '../navigation/types';
 
 /** Tapping a recent-activity card has no destination in the design handoff
@@ -14,7 +14,10 @@ import type { HomeStackParamList } from '../navigation/types';
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { plans } = usePlans();
-  const firstName = MOCK_PROFILE.name.split(' ')[0];
+  const { user } = useAuth();
+  // Falls back to the email's local part when no display name was given, so the
+  // greeting never reads "Olá, ." for an account that skipped the name field.
+  const firstName = (user?.name?.trim() || user?.username?.split('@')[0] || '').split(' ')[0];
   const recent = plans.slice(0, 4);
 
   return (
@@ -22,7 +25,7 @@ export function HomeScreen() {
       <ScrollView contentContainerClassName="px-6 py-7">
         <Text className="font-figtreeBold text-[12px] uppercase tracking-[0.14em] text-green-primary">Painel</Text>
         <Text className="mt-3 font-figtreeExtrabold text-[28px] tracking-[-0.02em] text-green-deep">
-          Olá, {firstName}.
+          {firstName ? `Olá, ${firstName}.` : 'Olá.'}
         </Text>
         <Text className="mt-2 font-figtree text-[15px] text-text-muted">
           Crie, escaneie e gerencie seus planos em um só lugar.
@@ -40,12 +43,17 @@ export function HomeScreen() {
             </View>
             <Text className="mt-3 font-figtreeBold text-[15px] text-white">Criar plano</Text>
           </Pressable>
-          <View className="flex-1 rounded-tl-[20px] rounded-tr-[6px] rounded-br-[20px] rounded-bl-[6px] border border-border bg-white p-4">
+          <Pressable
+            role="button"
+            aria-label="Escanear"
+            onPress={() => navigation.navigate('Scan')}
+            className="flex-1 rounded-tl-card-md rounded-tr-card-md-alt rounded-br-card-md rounded-bl-card-md-alt border border-border bg-white p-4"
+          >
             <View className="h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-mint-surface">
               <View className="h-3 w-3 rounded-[3px] border-2 border-green-primary" />
             </View>
             <Text className="mt-3 font-figtreeBold text-[15px] text-text-primary">Escanear</Text>
-          </View>
+          </Pressable>
         </View>
 
         <Text className="mt-7 font-figtreeExtrabold text-[18px] text-green-deep">Atividade recente</Text>

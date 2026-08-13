@@ -19,4 +19,10 @@ export interface Plan {
    * decision on whether this belongs on the plan or the account profile;
    * out of scope for GAB-31. */
   ownerName?: string;
+  /** Structured emergency contact. The guide's call action reads these when
+   * present, instead of recovering a phone number from prose — which broke
+   * whenever the owner reworded the section. Optional: plans written before
+   * these fields existed still fall back to the text scan. */
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }

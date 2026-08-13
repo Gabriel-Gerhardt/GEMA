@@ -7,19 +7,39 @@ import { SunflowerWordmark } from '../components/SunflowerMark';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
+import { FormError } from '../components/ScreenState';
 import { useAuth } from '../state/AuthContext';
 import type { PublicStackParamList } from '../navigation/types';
 
 export function CreateAccountScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
-  const { signIn } = useAuth();
+  const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit() {
-    if (!name.trim() || !email.trim() || !password.trim()) return;
-    signIn();
+  async function handleSubmit() {
+    if (!email.trim() || !password) {
+      setError('Preencha email e senha.');
+      return;
+    }
+    // Mirrors the API's own rule so the person is told before a round trip.
+    if (password.length < 8) {
+      setError('A senha precisa ter ao menos 8 caracteres.');
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await register(email.trim(), password, name.trim() || undefined);
+      // RootNavigator swaps to the tab shell once the session exists.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível criar a conta.');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -42,7 +62,10 @@ export function CreateAccountScreen() {
               secureTextEntry
               helperText="Ao menos 8 caracteres."
             />
-            <Button onPress={handleSubmit}>Criar conta</Button>
+            <FormError message={error} />
+            <Button onPress={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Criando…' : 'Criar conta'}
+            </Button>
           </View>
         </Card>
         <Text className="mt-4 text-center font-figtree text-[14px] leading-[1.6] text-text-muted">

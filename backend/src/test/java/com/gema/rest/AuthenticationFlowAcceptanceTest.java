@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gema.core.model.Role;
 import com.gema.core.service.JwtService;
+import com.gema.core.service.PasswordResetService;
 import com.gema.core.service.UserService;
 import com.gema.external.config.BeanConfig;
 import com.gema.external.config.GlobalExceptionHandler;
+import com.gema.external.config.JwtAuthenticationFilter;
+import com.gema.external.config.SecurityConfig;
 import com.gema.external.entity.UserEntity;
 import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.UserRepository;
@@ -15,7 +18,7 @@ import com.gema.external.rest.UserController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -51,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * call out explicitly.
  */
 @WebMvcTest(controllers = {AuthController.class, UserController.class})
-@Import({BeanConfig.class, GlobalExceptionHandler.class, UserService.class, JwtService.class})
+@Import({BeanConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class, UserService.class, JwtService.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=webmvc-wiring-acceptance-test-secret-key-32b-min!",
         "app.jwt.expiration-ms=3600000"
@@ -70,10 +73,13 @@ class AuthenticationFlowAcceptanceTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @MockBean
+    @MockitoBean
+    private PasswordResetService passwordResetService;
+
+    @MockitoBean
     private UserRepository userRepository;
 
-    @MockBean
+    @MockitoBean
     private QrcodeRepository qrcodeRepository;
 
     @Test

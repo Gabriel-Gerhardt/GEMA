@@ -35,6 +35,14 @@ describe('GalleryScreen', () => {
     expect(navigate).toHaveBeenCalledWith('PlanDetail', { planId: 'p1' });
   });
 
+  it('shows an empty state instead of a blank list when there are no plans', async () => {
+    (usePlans as jest.Mock).mockReturnValue({ plans: [] });
+    await render(<GalleryScreen />);
+    expect(screen.getByText('Nenhum plano ainda')).toBeOnTheScreen();
+    // The create action must still be reachable from the empty state.
+    expect(screen.getByRole('button', { name: '+ Criar plano' })).toBeOnTheScreen();
+  });
+
   it('navigates to Create Plan from the bottom button', async () => {
     const user = userEvent.setup();
     await render(<GalleryScreen />);

@@ -3,6 +3,9 @@ export type PublicStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   CreateAccount: undefined;
+  ForgotPassword: undefined;
+  /** Reached from the emailed link; the token rides in the query string. */
+  ResetPassword: { token?: string } | undefined;
   EmergencyGuide: { publicId: string };
   NotFound: undefined;
 };
@@ -10,6 +13,7 @@ export type PublicStackParamList = {
 export type HomeStackParamList = {
   HomeScreen: undefined;
   CreatePlan: undefined;
+  Scan: undefined;
   PlanCreated: { planId: string };
   /** Registered here too so a signed-in owner can preview their own plan's
    * public guide from Plan Created — see PublicStack's copy of the same

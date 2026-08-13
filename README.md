@@ -5,19 +5,22 @@ The QR will contain necessary information/guideline that will help others to sup
 
 ## How It Works
 
-<Describe the main flow of the system in simple steps>
-
-Example:
-- User creates a profile with emergency information  
-- System generates a QR code linked to the profile  
-- QR code is scanned in an emergency  
-- Relevant information is displayed instantly  
+- The plan owner creates an account and writes a **plan**: a short title plus a
+  list of **sections** ("Sobre mim", "O que ajuda", "Em uma emergência"), each a
+  few calm sentences in their own words.
+- The backend gives the plan a short **public id** and can render a QR code
+  image encoding the plan's public guide URL (`{frontend}/q/{publicId}`).
+- The owner carries that QR code — on a card, a bracelet, a bag tag.
+- A stranger scans it and lands on the **Emergency Guide View**: no login, no
+  app install, just the sections in order and a tappable emergency contact.
+- The owner can deactivate a plan at any time; a deactivated plan stops being
+  served publicly (the guide returns 404) without being deleted.
 
 ## Tech Stack
 
 - Java 21 + Spring Boot (backend)
 - PostgreSQL
-- React Native + TypeScript (frontend)
+- React Native + TypeScript, Expo SDK 57 (frontend)
 
 ## Architecture
 
@@ -34,21 +37,74 @@ The dependency rule is strict: the core must not depend on adapters, frameworks,
 - Support for individuals with specific conditions or in emergency situations  
 - Reliable information sharing with first responders
 
+## API
+
+Routes are split by audience, and the split carries the authorization rule:
+
+| Prefix | Audience | Auth |
+|---|---|---|
+| `/api/q/**` | Public — reached by scanning a QR code | None. Read-only, **active plans only** |
+| `/api/qrcodes/**` | Plan owner | Bearer token; every operation scoped to the caller's own plans |
+| `/api/users/me` | Account holder | Bearer token |
+| `POST /api/users`, `/api/auth/**` | Anyone | None — this is how you obtain a token |
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/users` | Register (returns token + user id) |
+| `POST` | `/api/auth/login` | Log in |
+| `GET` | `/api/users/me` | The authenticated account and its plan count |
+| `PUT` | `/api/users/me` | Update display name |
+| `DELETE` | `/api/users/me` | Delete account (cascades to plans) |
+| `GET` | `/api/qrcodes` | The caller's plans, paginated (`?page=&size=`) |
+| `POST` | `/api/qrcodes` | Create a plan, optionally with its sections in one transaction |
+| `GET` | `/api/qrcodes/{publicId}` | Read a plan as its owner |
+| `PUT` | `/api/qrcodes/{publicId}` | Rename / toggle active / set contact |
+| `DELETE` | `/api/qrcodes/{publicId}` | Delete a plan |
+| `GET` | `/api/qrcodes/{publicId}/image` | PNG of the plan's QR code |
+| `GET`/`POST`/`PUT` | `/api/qrcodes/{publicId}/sections` | Manage sections |
+| `GET` | `/api/q/{publicId}` | Public guide (404 if deactivated) |
+| `GET` | `/api/q/{publicId}/sections` | Public guide sections (404 if deactivated) |
+
+Send the token as `Authorization: Bearer <token>`. A plan belonging to another
+account reads as **404, not 403** — a 403 would confirm the id exists, which is
+enough to enumerate real plans.
+
+Accounts are addressable only as `/me`. There is deliberately no
+`/api/users/{id}`: it accepted any id, so sequential ids exposed every account
+and every account's plans.
+
 ## Set-up
 
-git clone <Link>
-cd <Project name>
-cd backend
-./gradlew clean build
-./gradlew bootrun
+```sh
+git clone https://github.com/Gabriel-Gerhardt/GEMA.git
+cd GEMA
 
-cd frontend
+# Backend — Postgres first, then the app
+cd backend
+docker compose up -d
+./gradlew clean build      # runs the test suite; no database needed for this
+./gradlew bootRun
+
+# Frontend
+cd ../frontend
 npm install
 npx expo start --web
+```
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | local Postgres | Datasource |
+| `APP_BASE_URL` | `http://localhost:8080` | This API's own base URL |
+| `APP_PUBLIC_BASE_URL` | `http://localhost:8081` | **Frontend** base URL — this is what a generated QR code encodes |
+| `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006` | Comma-separated CORS origins |
+| `JWT_SECRET` | dev-only placeholder | Signing key — override outside local dev |
+| `JWT_EXPIRATION_MS` | `3600000` | Token lifetime |
 
 ## Access
 
-API: <Swagger or backend URL>  
+API: http://localhost:8080 — Swagger UI at http://localhost:8080/swagger-ui.html  
 Frontend: Expo Dev Tools opens a QR code and a web preview link (defaults to http://localhost:8081) — scan it with Expo Go on a device, or press `w` to open the web preview.  
 
 ## Contact

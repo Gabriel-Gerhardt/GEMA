@@ -1,21 +1,25 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { ProfileScreen } from './ProfileScreen';
-import { usePlans } from '../state/PlansContext';
 import { useAuth } from '../state/AuthContext';
+import * as api from '../api/endpoints';
 
-jest.mock('../state/PlansContext');
 jest.mock('../state/AuthContext');
+jest.mock('../api/endpoints');
 
 describe('ProfileScreen', () => {
   const signOut = jest.fn();
   beforeEach(() => {
     signOut.mockClear();
-    (usePlans as jest.Mock).mockReturnValue({ plans: [{}, {}, {}] });
-    (useAuth as jest.Mock).mockReturnValue({ signOut });
+    (useAuth as jest.Mock).mockReturnValue({
+      signOut,
+      user: { id: 1, username: 'eduarda.souza@exemplo.com', name: 'Eduarda Souza', role: 'USER', planCount: 3 },
+      refreshUser: jest.fn(),
+      onUnauthorized: jest.fn(),
+    });
   });
 
-  it('shows the mock user, avatar initial, and plan count', async () => {
+  it('shows the authenticated account, avatar initial, and plan count', async () => {
     await render(<ProfileScreen />);
     expect(screen.getByText('Eduarda Souza')).toBeOnTheScreen();
     expect(screen.getByText('eduarda.souza@exemplo.com')).toBeOnTheScreen();
@@ -23,7 +27,8 @@ describe('ProfileScreen', () => {
     expect(screen.getByText('3')).toBeOnTheScreen();
   });
 
-  it('signs out once the delete-account confirm dialog is accepted', async () => {
+  it('deletes the account through the API, then signs out', async () => {
+    (api.deleteCurrentUser as jest.Mock).mockResolvedValue(undefined);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
       const destructive = buttons?.find((b) => b.style === 'destructive');
       destructive?.onPress?.();
@@ -31,7 +36,8 @@ describe('ProfileScreen', () => {
     const user = userEvent.setup();
     await render(<ProfileScreen />);
     await user.press(screen.getByRole('link', { name: 'Excluir conta' }));
-    expect(signOut).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(api.deleteCurrentUser).toHaveBeenCalled());
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
     alertSpy.mockRestore();
   });
 });

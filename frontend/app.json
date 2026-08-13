@@ -23,6 +23,14 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "A GEMA usa a câmera para ler o QR de um plano e abrir o guia de apoio."
+        }
+      ]
+    ]
   }
 }

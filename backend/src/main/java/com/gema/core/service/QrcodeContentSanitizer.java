@@ -7,9 +7,15 @@ public final class QrcodeContentSanitizer {
     private QrcodeContentSanitizer() {
     }
 
+    /**
+     * Rejects content containing control characters.
+     *
+     * <p>{@code null}/blank is accepted: the legacy free-text {@code content}
+     * field is optional now that a plan's content lives in its sections.
+     */
     public static void validate(String content) {
-        if (content == null || content.isBlank()) {
-            throw new BadRequestException("Content must not be blank");
+        if (content == null) {
+            return;
         }
 
         for (int i = 0; i < content.length(); i++) {

@@ -6,93 +6,113 @@ import com.gema.adapters.dto.response.SectionCreateResponse;
 import com.gema.adapters.dto.response.SectionResponse;
 import com.gema.external.entity.QrcodeEntity;
 import com.gema.external.entity.SectionEntity;
-import com.gema.external.exception.NotFoundException;
-import com.gema.external.repository.QrcodeRepository;
 import com.gema.external.repository.SectionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class SectionService {
 
     private final SectionRepository sectionRepository;
-    private final QrcodeRepository qrcodeRepository;
+    private final QrcodeService qrcodeService;
 
-    public SectionService(SectionRepository sectionRepository, QrcodeRepository qrcodeRepository) {
+    public SectionService(SectionRepository sectionRepository, QrcodeService qrcodeService) {
         this.sectionRepository = sectionRepository;
-        this.qrcodeRepository = qrcodeRepository;
+        this.qrcodeService = qrcodeService;
     }
 
-    public SectionCreateResponse createSection(String qrcodePublicId, SectionSaveRequest request) {
-        QrcodeEntity qrcode = qrcodeRepository.findByPublicId(qrcodePublicId)
-                .orElseThrow(() -> new NotFoundException("QR code not found"));
+    @Transactional
+    public SectionCreateResponse createSection(String qrcodePublicId, SectionSaveRequest request, String username) {
+        QrcodeEntity qrcode = qrcodeService.requireOwnedQrcode(qrcodePublicId, username);
 
         LocalDateTime now = LocalDateTime.now();
-        SectionEntity entity = new SectionEntity(
-                null,
-                qrcode,
-                request.title(),
-                request.content(),
-                now,
-                now
-        );
-
-        SectionEntity saved = sectionRepository.save(entity);
+        int nextSortOrder = sectionRepository.countByQrcode_PublicId(qrcode.getPublicId());
+        SectionEntity saved = sectionRepository.save(
+                new SectionEntity(qrcode, request.title(), request.content(), nextSortOrder, now, now));
 
         return new SectionCreateResponse(
                 saved.getId(),
                 qrcode.getPublicId(),
                 saved.getTitle(),
                 saved.getContent(),
+                saved.getSortOrder(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt()
         );
     }
 
-    public List<SectionResponse> getSections(String qrcodePublicId) {
-        QrcodeEntity qrcode = qrcodeRepository.findByPublicId(qrcodePublicId)
-                .orElseThrow(() -> new NotFoundException("QR code not found"));
-
-        return sectionRepository.findByQrcode_PublicIdOrderByIdAsc(qrcode.getPublicId())
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    /** Owner-facing read: returns sections whatever the plan's active state. */
+    public List<SectionResponse> getSections(String qrcodePublicId, String username) {
+        return readSections(qrcodeService.requireOwnedQrcode(qrcodePublicId, username));
     }
 
+    /** Public read for the scanned guide: 404s when the plan is deactivated. */
+    public List<SectionResponse> getPublicSections(String qrcodePublicId) {
+        return readSections(qrcodeService.requirePublicQrcode(qrcodePublicId));
+    }
+
+    /**
+     * Replaces the plan's section list with the submitted one.
+     *
+     * <p>Rows are matched positionally and updated in place, with the surplus
+     * added or trimmed at the end. The previous implementation deleted every row
+     * and re-inserted, which churned primary keys and reset {@code created_at}
+     * on each save, and made ordering depend on insert order.
+     */
     @Transactional
-    public List<SectionResponse> replaceSections(String qrcodePublicId, SectionListSaveRequest request) {
-        QrcodeEntity qrcode = qrcodeRepository.findByPublicId(qrcodePublicId)
-                .orElseThrow(() -> new NotFoundException("QR code not found"));
+    public List<SectionResponse> replaceSections(String qrcodePublicId, SectionListSaveRequest request, String username) {
+        QrcodeEntity qrcode = qrcodeService.requireOwnedQrcode(qrcodePublicId, username);
 
-        sectionRepository.deleteByQrcode_PublicId(qrcode.getPublicId());
-
+        List<SectionEntity> existing =
+                sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(qrcode.getPublicId());
+        List<SectionSaveRequest> submitted = request.sections();
         LocalDateTime now = LocalDateTime.now();
-        List<SectionEntity> entities = request.sections().stream()
-                .map(section -> new SectionEntity(
-                        null,
-                        qrcode,
-                        section.title(),
-                        section.content(),
-                        now,
-                        now
-                ))
-                .toList();
 
-        return sectionRepository.saveAll(entities)
-                .stream()
-                .map(this::toResponse)
+        List<SectionEntity> result = new ArrayList<>(submitted.size());
+        for (int i = 0; i < submitted.size(); i++) {
+            SectionSaveRequest source = submitted.get(i);
+            SectionEntity target = i < existing.size()
+                    ? existing.get(i)
+                    : new SectionEntity(qrcode, source.title(), source.content(), i, now, now);
+
+            target.setTitle(source.title());
+            target.setContent(source.content());
+            target.setSortOrder(i);
+            result.add(target);
+        }
+
+        if (existing.size() > submitted.size()) {
+            sectionRepository.deleteAll(existing.subList(submitted.size(), existing.size()));
+        }
+
+        return sectionRepository.saveAll(result).stream()
+                .map(entity -> toResponse(entity, qrcode.getPublicId()))
                 .toList();
     }
 
-    private SectionResponse toResponse(SectionEntity entity) {
+    private List<SectionResponse> readSections(QrcodeEntity qrcode) {
+        return sectionRepository.findByQrcode_PublicIdOrderBySortOrderAscIdAsc(qrcode.getPublicId())
+                .stream()
+                .map(entity -> toResponse(entity, qrcode.getPublicId()))
+                .toList();
+    }
+
+    /**
+     * Takes the public id from the caller rather than reading
+     * {@code entity.getQrcode()}: the association is lazy, and every call site
+     * already knows the id, so this avoids a needless proxy initialization.
+     */
+    private SectionResponse toResponse(SectionEntity entity, String qrcodePublicId) {
         return new SectionResponse(
                 entity.getId(),
-                entity.getQrcode().getPublicId(),
+                qrcodePublicId,
                 entity.getTitle(),
                 entity.getContent(),
+                entity.getSortOrder(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

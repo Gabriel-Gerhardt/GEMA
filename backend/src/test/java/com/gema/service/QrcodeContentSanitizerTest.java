@@ -9,22 +9,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QrcodeContentSanitizerTest {
 
+    // `content` is the legacy free-text payload that predates the sections
+    // model. It is optional now, so absence is valid input rather than an
+    // error; the sanitizer's remaining job is rejecting control characters.
+
     @Test
-    void validate_nullContent_throwsBadRequestException() {
-        assertThatThrownBy(() -> QrcodeContentSanitizer.validate(null))
-                .isInstanceOf(BadRequestException.class);
+    void validate_nullContent_isAllowed() {
+        assertThatCode(() -> QrcodeContentSanitizer.validate(null))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void validate_emptyContent_throwsBadRequestException() {
-        assertThatThrownBy(() -> QrcodeContentSanitizer.validate(""))
-                .isInstanceOf(BadRequestException.class);
+    void validate_emptyContent_isAllowed() {
+        assertThatCode(() -> QrcodeContentSanitizer.validate(""))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void validate_blankContent_throwsBadRequestException() {
-        assertThatThrownBy(() -> QrcodeContentSanitizer.validate("   "))
-                .isInstanceOf(BadRequestException.class);
+    void validate_blankContent_isAllowed() {
+        assertThatCode(() -> QrcodeContentSanitizer.validate("   "))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -58,9 +62,9 @@ class QrcodeContentSanitizerTest {
     }
 
     @Test
-    void validate_whitespaceOnlyWithNewlinesAndTabs_throwsBadRequestException() {
-        assertThatThrownBy(() -> QrcodeContentSanitizer.validate("\n\t\n\t  \n"))
-                .isInstanceOf(BadRequestException.class);
+    void validate_whitespaceOnlyWithNewlinesAndTabs_isAllowed() {
+        assertThatCode(() -> QrcodeContentSanitizer.validate("\n\t\n\t  \n"))
+                .doesNotThrowAnyException();
     }
 
     @Test

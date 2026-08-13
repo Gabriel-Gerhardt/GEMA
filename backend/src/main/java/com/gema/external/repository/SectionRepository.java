@@ -8,6 +8,11 @@ import java.util.List;
 
 @Repository
 public interface SectionRepository extends JpaRepository<SectionEntity, Long> {
-    List<SectionEntity> findByQrcode_PublicIdOrderByIdAsc(String publicId);
+
+    /** Id is the tiebreaker so ordering stays deterministic if two rows share a sort order. */
+    List<SectionEntity> findByQrcode_PublicIdOrderBySortOrderAscIdAsc(String publicId);
+
+    int countByQrcode_PublicId(String publicId);
+
     void deleteByQrcode_PublicId(String publicId);
 }
