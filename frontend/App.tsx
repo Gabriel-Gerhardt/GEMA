@@ -34,6 +34,9 @@ const PUBLIC_LINKING: AppLinkingOptions = {
       CreateAccount: 'create-account',
       Onboarding: 'welcome',
       EmergencyGuide: 'q/:publicId',
+      // The address the reset email links to.
+      ResetPassword: 'redefinir-senha',
+      ForgotPassword: 'recuperar-senha',
       NotFound: '*',
     },
   },
@@ -71,8 +74,19 @@ const AUTHENTICATED_LINKING: AppLinkingOptions = {
  * shapes, and a single merged config would declare the same path twice.
  */
 function NavigationRoot() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isRestoring } = useAuth();
   const linking = useMemo(() => (isSignedIn ? AUTHENTICATED_LINKING : PUBLIC_LINKING), [isSignedIn]);
+
+  // Hold the first render until the stored token has been checked. Mounting the
+  // public stack first would flash the landing page at someone who is already
+  // signed in, and then yank it away.
+  if (isRestoring) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cream }}>
+        <ActivityIndicator color={colors.green.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer linking={linking}>
