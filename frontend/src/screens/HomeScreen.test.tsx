@@ -32,6 +32,15 @@ describe('HomeScreen', () => {
     expect(screen.getByText('Contato de emergência')).toBeOnTheScreen();
   });
 
+  it('navigates to Scan from the "Escanear" tile', async () => {
+    // The tile was a plain View for the whole of the mock build: unpressable,
+    // on the action the product is named for.
+    const user = userEvent.setup();
+    await render(<HomeScreen />);
+    await user.press(screen.getByRole('button', { name: 'Escanear' }));
+    expect(navigate).toHaveBeenCalledWith('Scan');
+  });
+
   it('navigates to CreatePlan from the "Criar plano" tile', async () => {
     const user = userEvent.setup();
     await render(<HomeScreen />);

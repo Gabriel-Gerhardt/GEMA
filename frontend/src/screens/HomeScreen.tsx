@@ -43,12 +43,17 @@ export function HomeScreen() {
             </View>
             <Text className="mt-3 font-figtreeBold text-[15px] text-white">Criar plano</Text>
           </Pressable>
-          <View className="flex-1 rounded-tl-[20px] rounded-tr-[6px] rounded-br-[20px] rounded-bl-[6px] border border-border bg-white p-4">
+          <Pressable
+            role="button"
+            aria-label="Escanear"
+            onPress={() => navigation.navigate('Scan')}
+            className="flex-1 rounded-tl-card-md rounded-tr-card-md-alt rounded-br-card-md rounded-bl-card-md-alt border border-border bg-white p-4"
+          >
             <View className="h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-mint-surface">
               <View className="h-3 w-3 rounded-[3px] border-2 border-green-primary" />
             </View>
             <Text className="mt-3 font-figtreeBold text-[15px] text-text-primary">Escanear</Text>
-          </View>
+          </Pressable>
         </View>
 
         <Text className="mt-7 font-figtreeExtrabold text-[18px] text-green-deep">Atividade recente</Text>

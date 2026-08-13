@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { CreatePlanScreen } from '../screens/CreatePlanScreen';
+import { ScanScreen } from '../screens/ScanScreen';
 import { PlanCreatedScreen } from '../screens/PlanCreatedScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { PlanDetailScreen } from '../screens/PlanDetailScreen';
@@ -18,6 +19,7 @@ function HomeStack() {
     <HomeStackNav.Navigator screenOptions={{ headerShown: false }}>
       <HomeStackNav.Screen name="HomeScreen" component={HomeScreen} />
       <HomeStackNav.Screen name="CreatePlan" component={CreatePlanScreen} />
+      <HomeStackNav.Screen name="Scan" component={ScanScreen} />
       <HomeStackNav.Screen name="PlanCreated" component={PlanCreatedScreen} />
       <HomeStackNav.Screen name="EmergencyGuide" component={EmergencyGuideScreen} />
     </HomeStackNav.Navigator>

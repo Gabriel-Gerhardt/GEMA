@@ -13,6 +13,7 @@ export type PublicStackParamList = {
 export type HomeStackParamList = {
   HomeScreen: undefined;
   CreatePlan: undefined;
+  Scan: undefined;
   PlanCreated: { planId: string };
   /** Registered here too so a signed-in owner can preview their own plan's
    * public guide from Plan Created — see PublicStack's copy of the same
